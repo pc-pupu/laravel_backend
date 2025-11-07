@@ -1,0 +1,75 @@
+# Laravel Environment Files
+.env
+.env.*
+!.env.example
+
+# Laravel Directories
+/vendor/
+node_modules/
+public/storage
+storage/*.key
+storage/app/public
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+bootstrap/cache/*
+!storage/framework/.gitignore
+!storage/logs/.gitignore
+!bootstrap/cache/.gitignore
+
+# Compiled Assets
+/public/hot
+/public/build
+/public/mix-manifest.json
+/public/js
+/public/css
+
+# Laravel Pint (code style cache)
+.pint.json
+pint.lock
+
+# Cache & Debug
+.phpunit.result.cache
+.php-cs-fixer.cache
+.cache
+*.log
+
+# IDE / Editor Files
+.idea/
+.vscode/
+nbproject/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Node & Composer Locks (optional, depending on your deployment policy)
+# Uncomment if you don't want to commit lock files:
+# composer.lock
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# System / OS Files
+.DS_Store
+Thumbs.db
+Icon?
+ehthumbs.db
+Desktop.ini
+
+# Docker & CI
+docker-compose.override.yml
+.docker/
+docker/
+.env.docker
+.env.testing
+
+# Vite / Mix
+vite.config.js.timestamp
+vite.config.ts.timestamp
+
+# Misc
+npm-debug.log
+yarn-error.log
+coverage/
