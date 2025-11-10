@@ -11,7 +11,7 @@ class StaticpageController extends Controller
     public function index($param){
         if($param !== '') {
             $param = str_replace('-', '_', $param);
-            if($param == 'notice'){
+            if($param == 'notice' || $param == 'faq'){
                 $data = housingCms::where('content_type', $param)->get();
             }else{
                 $data = housingCms::where('content_type', $param)->first();
