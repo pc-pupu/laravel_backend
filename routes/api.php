@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ErrorLogController;
+use App\Http\Controllers\Api\DashboardController;
 
 // Public routes
 Route::get('/content/{param}', [StaticpageController::class, 'index']);
@@ -37,4 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('error-logs/{id}', [ErrorLogController::class, 'destroy']);
         Route::delete('error-logs', [ErrorLogController::class, 'clear']);
     });
+    Route::get('/dashboard', [DashboardController::class, 'index']);
 });
+
+ 
