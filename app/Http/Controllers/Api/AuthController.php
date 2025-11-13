@@ -28,13 +28,19 @@ class AuthController extends Controller
             ], 404);
         }
 
-        if ($user) {
-            if($user->new_pass_set == 0) {
-                $user->password = Hash::make($request->password);
-                $user->new_pass_set = 1;
-                $user->save();
+        // Check if user is active
+        if ($user->status != 1) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your account is inactive. Please contact administrator.'
+            ], 403);
+        }
 
-            }
+        // Handle password migration for Drupal users (if new_pass_set is 0)
+        if ($user->new_pass_set == 0) {
+            $user->password = Hash::make($request->password);
+            $user->new_pass_set = 1;
+            $user->save();
         }
 
         // Password check 
@@ -57,6 +63,7 @@ class AuthController extends Controller
             'user' => [
                 'uid' => $user->uid,
                 'name' => $user->name,
+                'email' => $user->email,
             ],
             'token' => $token,
         ]);
