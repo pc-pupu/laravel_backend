@@ -17,5 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Log all exceptions to error_logs table
+        $exceptions->report(function (\Throwable $e) {
+            \App\Services\ErrorLogService::logException($e);
+        });
     })->create();
