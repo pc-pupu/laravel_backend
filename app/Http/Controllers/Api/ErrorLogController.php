@@ -46,9 +46,10 @@ class ErrorLogController extends Controller
                 $query->where('level', $request->level);
             }
 
-            // Search by message
+            // Search by message (case-insensitive)
             if ($request->has('search') && $request->search) {
-                $query->where('message', 'like', "%{$request->search}%");
+                $searchTerm = strtolower($request->search);
+                $query->whereRaw('LOWER(message) LIKE ?', ["%{$searchTerm}%"]);
             }
 
             // Filter by user

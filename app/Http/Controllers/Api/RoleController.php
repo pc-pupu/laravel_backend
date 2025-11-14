@@ -8,109 +8,86 @@ use App\Models\Permission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use Log;
 
 class RoleController extends Controller
 {
     /**
-     * Display a listing of roles.
+     * LIST ROLES
+     * Endpoint used by: /admin/roles/list
      */
     public function index(Request $request)
     {
         $query = Role::with('permissions', 'users');
 
-        // Search by name
-        if ($request->has('search')) {
-            $query->where('name', 'like', "%{$request->search}%");
+        // Search filter (case-insensitive)
+        if ($request->search) {
+            $searchTerm = strtolower($request->search);
+            $query->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"]);
         }
 
-        $roles = $query->orderBy('name')->paginate($request->get('per_page', 15));
-        Log::info('Roles fetched: ', ['roles' => $roles->items()]);
+        $roles = $query
+            ->orderBy('name')
+            ->paginate($request->per_page ?? 15);
 
         return response()->json([
             'status' => 'success',
-            'data' => $roles
+            'data'   => $roles
         ]);
     }
 
     /**
-     * Store a newly created role.
+     * CREATE ROLE
      */
     public function store(Request $request)
     {
         $guardName = $request->guard_name ?? 'web';
-        
+
         $validator = Validator::make($request->all(), [
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('roles')->where(function ($query) use ($guardName) {
-                    return $query->where('guard_name', $guardName);
-                })
+                Rule::unique('roles')->where(function ($q) use ($guardName) {
+                    return $q->where('guard_name', $guardName);
+                }),
             ],
-            'guard_name' => 'nullable|string|max:255',
-            'permissions' => 'nullable|array',
-            'permissions.*' => 'exists:permissions,id',
+            'guard_name'   => 'nullable|string|max:255',
+            'permissions'  => 'nullable|array',
+            'permissions.*'=> 'exists:permissions,id',
         ]);
 
         if ($validator->fails()) {
-            // Convert validation errors to user-friendly messages
-            $friendlyErrors = [];
-            $errors = $validator->errors();
-            
-            // Convert each error to user-friendly format
-            foreach ($errors->messages() as $field => $messages) {
-                $friendlyErrors[$field] = array_map(function($message) {
-                    return str_replace(
-                        [
-                            'The name field is required.',
-                            'The name has already been taken.',
-                            'The permissions.0 must exist.',
-                            'The selected permissions.0 is invalid.',
-                        ],
-                        [
-                            'Role name is required.',
-                            'A role with this name already exists for this guard.',
-                            'One or more selected permissions are invalid.',
-                            'One or more selected permissions are invalid.',
-                        ],
-                        $message
-                    );
-                }, $messages);
-            }
-            
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Please fix the errors below',
-                'errors' => $friendlyErrors
+                'errors'  => $validator->errors()
             ], 422);
         }
 
         $role = Role::create([
-            'name' => $request->name,
-            'guard_name' => $request->guard_name ?? 'web',
+            'name'       => $request->name,
+            'guard_name' => $guardName,
         ]);
 
-        // Assign permissions (empty array means no permissions)
-        if ($request->has('permissions') && is_array($request->permissions)) {
+        // Sync permissions
+        if ($request->permissions) {
             $role->permissions()->sync($request->permissions);
         } else {
-            // If permissions not provided, sync empty array
             $role->permissions()->sync([]);
         }
 
-        $role->load('permissions');
+        $role->load('permissions', 'users');
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Role created successfully',
-            'data' => $role
+            'data'    => $role
         ], 201);
     }
 
     /**
-     * Display the specified role.
+     * SHOW ROLE
+     * Endpoint: /admin/roles/{id}
      */
     public function show($id)
     {
@@ -118,19 +95,19 @@ class RoleController extends Controller
 
         if (!$role) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Role not found'
             ], 404);
         }
 
         return response()->json([
             'status' => 'success',
-            'data' => $role
+            'data'   => $role
         ]);
     }
 
     /**
-     * Update the specified role.
+     * UPDATE ROLE
      */
     public function update(Request $request, $id)
     {
@@ -138,85 +115,56 @@ class RoleController extends Controller
 
         if (!$role) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Role not found'
             ], 404);
         }
 
         $guardName = $request->guard_name ?? 'web';
-        
+
         $validator = Validator::make($request->all(), [
             'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('roles')->where(function ($query) use ($guardName) {
-                    return $query->where('guard_name', $guardName);
-                })->ignore($role->id, 'id')
+                'required', 'string', 'max:255',
+                Rule::unique('roles')->where(function ($q) use ($guardName) {
+                    return $q->where('guard_name', $guardName);
+                })->ignore($role->id)
             ],
             'guard_name' => 'nullable|string|max:255',
-            'permissions' => 'nullable|array',
+            'permissions'=> 'nullable|array',
             'permissions.*' => 'exists:permissions,id',
         ]);
 
         if ($validator->fails()) {
-            // Convert validation errors to user-friendly messages
-            $friendlyErrors = [];
-            $errors = $validator->errors();
-            
-            // Convert each error to user-friendly format
-            foreach ($errors->messages() as $field => $messages) {
-                $friendlyErrors[$field] = array_map(function($message) {
-                    return str_replace(
-                        [
-                            'The name field is required.',
-                            'The name has already been taken.',
-                            'The permissions.0 must exist.',
-                            'The selected permissions.0 is invalid.',
-                        ],
-                        [
-                            'Role name is required.',
-                            'A role with this name already exists for this guard.',
-                            'One or more selected permissions are invalid.',
-                            'One or more selected permissions are invalid.',
-                        ],
-                        $message
-                    );
-                }, $messages);
-            }
-            
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Please fix the errors below',
-                'errors' => $friendlyErrors
+                'errors'  => $validator->errors()
             ], 422);
         }
 
+        // Update basic fields
         $role->name = $request->name;
-        if ($request->has('guard_name')) {
-            $role->guard_name = $request->guard_name;
-        }
+        $role->guard_name = $request->guard_name ?? $role->guard_name;
         $role->save();
 
-        // Update permissions (empty array means no permissions)
-        if ($request->has('permissions') && is_array($request->permissions)) {
+        // Sync permissions
+        if ($request->has('permissions')) {
             $role->permissions()->sync($request->permissions);
         } else {
-            // If permissions not provided, sync empty array
             $role->permissions()->sync([]);
         }
 
-        $role->load('permissions');
+        $role->load('permissions', 'users');
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Role updated successfully',
-            'data' => $role
+            'data'    => $role
         ]);
     }
 
     /**
-     * Remove the specified role.
+     * DELETE ROLE
      */
     public function destroy($id)
     {
@@ -224,7 +172,7 @@ class RoleController extends Controller
 
         if (!$role) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Role not found'
             ], 404);
         }
@@ -232,29 +180,28 @@ class RoleController extends Controller
         $role->delete();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Role deleted successfully'
         ]);
     }
 
     /**
-     * Get all permissions for role assignment
+     * GET PERMISSIONS OF ONE ROLE
      */
     public function getPermissions($id)
     {
         $role = Role::with('permissions')->find($id);
-        
+
         if (!$role) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Role not found'
             ], 404);
         }
 
         return response()->json([
             'status' => 'success',
-            'data' => $role->permissions
+            'data'   => $role->permissions
         ]);
     }
 }
-

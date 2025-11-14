@@ -5,37 +5,35 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\PasswordHistory;
-use App\Models\Role;
-use App\Services\ErrorLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
 {
     /**
-     * Display a listing of users.
+     * LIST USERS (used by /admin/users/list)
      */
     public function index(Request $request)
     {
         $query = User::with('roles');
 
-        // Search by name or email
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+        // Search by name or email (case-insensitive)
+        if ($request->search) {
+            $searchTerm = strtolower($request->search);
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"])
+                  ->orWhereRaw('LOWER(email) LIKE ?', ["%{$searchTerm}%"]);
             });
         }
 
-        // Filter by status
-        if ($request->has('status')) {
+        // Optional status filter
+        if ($request->status !== null) {
             $query->where('status', $request->status);
         }
 
-        $users = $query->paginate($request->get('per_page', 15));
+        $users = $query->paginate($request->per_page ?? 15);
 
         return response()->json([
             'status' => 'success',
@@ -44,223 +42,153 @@ class UserController extends Controller
     }
 
     /**
-     * Store a newly created user.
+     * CREATE USER
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255|unique:users,name',
-            'email' => 'required|email|max:255|unique:users,email',
-            'password' => 'required|string|min:6|confirmed',
-            'roles' => 'array',
-            'roles.*' => 'exists:roles,id',
-            'status' => 'integer|in:0,1',
+            'name'      => 'required|string|max:255|unique:users,name',
+            'email'     => 'required|email|max:255|unique:users,email',
+            'password'  => 'required|string|min:8|confirmed',
+            'roles'     => 'array',
+            'roles.*'   => 'exists:roles,id',
+            'status'    => 'integer|in:0,1',
         ]);
 
         if ($validator->fails()) {
-            // Convert validation errors to user-friendly messages
-            $friendlyErrors = [];
-            $errors = $validator->errors();
-            
-            // Convert each error to user-friendly format
-            foreach ($errors->messages() as $field => $messages) {
-                $friendlyErrors[$field] = array_map(function($message) {
-                    return str_replace(
-                        [
-                            'The name field is required.',
-                            'The name has already been taken.',
-                            'The email field is required.',
-                            'The email has already been taken.',
-                            'The email must be a valid email address.',
-                            'The password field is required.',
-                            'The password must be at least 8 characters.',
-                            'The password confirmation does not match.',
-                            'The roles.0 must exist.',
-                            'The selected roles.0 is invalid.',
-                        ],
-                        [
-                            'Username is required.',
-                            'This username is already taken.',
-                            'Email is required.',
-                            'This email is already registered.',
-                            'Please enter a valid email address.',
-                            'Password is required.',
-                            'Password must be at least 8 characters long.',
-                            'Password confirmation does not match.',
-                            'One or more selected roles are invalid.',
-                            'One or more selected roles are invalid.',
-                        ],
-                        $message
-                    );
-                }, $messages);
-            }
-            
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Please fix the errors below',
-                'errors' => $friendlyErrors
+                'errors'  => $validator->errors()
             ], 422);
         }
 
         // Create user
         $user = new User();
-        $user->name = $request->name;
-        $user->email = $request->email;
-        $user->password = Hash::make($request->password);
-        $user->status = $request->status ?? 1;
+        $user->name         = $request->name;
+        $user->email        = $request->email;
+        $user->password     = Hash::make($request->password);
+        $user->status       = $request->status ?? 1;
         $user->new_pass_set = 1;
         $user->save();
 
         // Save password to history
         PasswordHistory::create([
-            'uid' => $user->uid,
-            'password_hash' => $user->password,
+            'uid'           => $user->uid,
+            'password_hash' => $user->password
         ]);
 
         // Assign roles
-        if ($request->has('roles') && is_array($request->roles)) {
+        if ($request->roles) {
             $user->roles()->sync($request->roles);
         }
 
         $user->load('roles');
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'User created successfully',
-            'data' => $user
+            'data'    => $user
         ], 201);
     }
 
     /**
-     * Display the specified user.
+     * SHOW USER (uses uid, not id)
      */
-    public function show($id)
+    public function show($uid)
     {
-        $user = User::with('roles', 'roles.permissions')->find($id);
+        $user = User::with('roles', 'roles.permissions')
+            ->where('uid', $uid)
+            ->first();
 
         if (!$user) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'User not found'
             ], 404);
         }
 
         return response()->json([
             'status' => 'success',
-            'data' => $user
+            'data'   => $user
         ]);
     }
 
     /**
-     * Update the specified user.
+     * UPDATE USER (uses uid)
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, $uid)
     {
-        $user = User::find($id);
+        $user = User::where('uid', $uid)->first();
 
         if (!$user) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'User not found'
             ], 404);
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'max:255', Rule::unique('users', 'name')->ignore($user->uid, 'uid')],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->uid, 'uid')],
-            'password' => 'nullable|string|min:8|confirmed',
-            'roles' => 'array',
-            'roles.*' => 'exists:roles,id',
-            'status' => 'integer|in:0,1',
+            'name'      => ['required', 'string', 'max:255',
+                Rule::unique('users', 'name')->ignore($user->uid, 'uid')],
+            'email'     => ['required', 'email', 'max:255',
+                Rule::unique('users', 'email')->ignore($user->uid, 'uid')],
+            'password'  => 'nullable|string|min:8|confirmed',
+            'roles'     => 'array',
+            'roles.*'   => 'exists:roles,id',
+            'status'    => 'integer|in:0,1',
         ]);
 
         if ($validator->fails()) {
-            // Convert validation errors to user-friendly messages
-            $friendlyErrors = [];
-            $errors = $validator->errors();
-            
-            // Convert each error to user-friendly format
-            foreach ($errors->messages() as $field => $messages) {
-                $friendlyErrors[$field] = array_map(function($message) {
-                    return str_replace(
-                        [
-                            'The name field is required.',
-                            'The name has already been taken.',
-                            'The email field is required.',
-                            'The email has already been taken.',
-                            'The email must be a valid email address.',
-                            'The password field is required.',
-                            'The password must be at least 8 characters.',
-                            'The password confirmation does not match.',
-                            'The roles.0 must exist.',
-                            'The selected roles.0 is invalid.',
-                        ],
-                        [
-                            'Username is required.',
-                            'This username is already taken.',
-                            'Email is required.',
-                            'This email is already registered.',
-                            'Please enter a valid email address.',
-                            'Password is required.',
-                            'Password must be at least 8 characters long.',
-                            'Password confirmation does not match.',
-                            'One or more selected roles are invalid.',
-                            'One or more selected roles are invalid.',
-                        ],
-                        $message
-                    );
-                }, $messages);
-            }
-            
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Please fix the errors below',
-                'errors' => $friendlyErrors
+                'errors'  => $validator->errors()
             ], 422);
         }
 
-        // Update user
-        $user->name = $request->name;
-        $user->email = $request->email;
-        $user->status = $request->has('status') ? $request->status : $user->status;
+        // Update basic fields
+        $user->name   = $request->name;
+        $user->email  = $request->email;
+        $user->status = $request->status ?? $user->status;
 
-        // Handle password change with history check
+        /**
+         * PASSWORD UPDATE & HISTORY CHECK
+         */
         if ($request->filled('password')) {
-            // Check last 3 passwords
+
+            // Get last 3 passwords
             $lastPasswords = PasswordHistory::where('uid', $user->uid)
                 ->orderBy('created_at', 'desc')
                 ->limit(3)
                 ->pluck('password_hash')
                 ->toArray();
 
-            $newPasswordHash = Hash::make($request->password);
-
-            // Check if new password matches any of the last 3 passwords
             foreach ($lastPasswords as $oldHash) {
                 if (Hash::check($request->password, $oldHash)) {
                     return response()->json([
-                        'status' => 'error',
+                        'status'  => 'error',
                         'message' => 'Please fix the errors below',
-                        'errors' => [
+                        'errors'  => [
                             'password' => ['You cannot use any of your last 3 passwords']
                         ]
                     ], 422);
                 }
             }
 
-            $user->password = $newPasswordHash;
+            $newHash = Hash::make($request->password);
+            $user->password = $newHash;
             $user->new_pass_set = 1;
 
-            // Save to password history
             PasswordHistory::create([
-                'uid' => $user->uid,
-                'password_hash' => $newPasswordHash,
+                'uid'           => $user->uid,
+                'password_hash' => $newHash,
             ]);
         }
 
         $user->save();
 
-        // Update roles
+        // Sync roles
         if ($request->has('roles')) {
             $user->roles()->sync($request->roles);
         }
@@ -268,22 +196,22 @@ class UserController extends Controller
         $user->load('roles');
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'User updated successfully',
-            'data' => $user
+            'data'    => $user
         ]);
     }
 
     /**
-     * Remove the specified user.
+     * DELETE USER
      */
-    public function destroy($id)
+    public function destroy($uid)
     {
-        $user = User::find($id);
+        $user = User::where('uid', $uid)->first();
 
         if (!$user) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'User not found'
             ], 404);
         }
@@ -291,7 +219,7 @@ class UserController extends Controller
         $user->delete();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'User deleted successfully'
         ]);
     }

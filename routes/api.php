@@ -15,30 +15,30 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/user', [AuthController::class, 'user']);
-    Route::post('/logout', [AuthController::class, 'logout']);
-
-    // Admin routes
     Route::prefix('admin')->group(function () {
+
         // Users
-        Route::apiResource('users', UserController::class);
-        
+        Route::get('users', [UserController::class, 'index']);
+        Route::post('users', [UserController::class, 'store']);
+        Route::get('users/{id}', [UserController::class, 'show']);
+        Route::put('users/{id}', [UserController::class, 'update']);
+        Route::delete('users/{id}', [UserController::class, 'destroy']);
+
         // Roles
-        Route::apiResource('roles', RoleController::class);
-        Route::get('roles/{id}/permissions', [RoleController::class, 'getPermissions']);
-        
+        Route::get('roles', [RoleController::class, 'index']);
+        Route::post('roles', [RoleController::class, 'store']);
+        Route::get('roles/{id}', [RoleController::class, 'show']);
+        Route::put('roles/{id}', [RoleController::class, 'update']);
+        Route::delete('roles/{id}', [RoleController::class, 'destroy']);
+
         // Permissions
-        Route::apiResource('permissions', PermissionController::class);
-        Route::get('permissions/modules/list', [PermissionController::class, 'getModules']);
-        
-        // Error Logs
-        Route::get('error-logs', [ErrorLogController::class, 'index']);
-        Route::get('error-logs/statistics', [ErrorLogController::class, 'statistics']);
-        Route::get('error-logs/{id}', [ErrorLogController::class, 'show']);
-        Route::delete('error-logs/{id}', [ErrorLogController::class, 'destroy']);
-        Route::delete('error-logs', [ErrorLogController::class, 'clear']);
+        Route::get('permissions', [PermissionController::class, 'index']);
+        Route::post('permissions', [PermissionController::class, 'store']);
+        Route::get('permissions/{id}', [PermissionController::class, 'show']);
+        Route::put('permissions/{id}', [PermissionController::class, 'update']);
+        Route::delete('permissions/{id}', [PermissionController::class, 'destroy']);
     });
-    Route::get('/dashboard', [DashboardController::class, 'index']);
 });
+
 
  

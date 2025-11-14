@@ -11,89 +11,73 @@ use Illuminate\Validation\Rule;
 class PermissionController extends Controller
 {
     /**
-     * Display a listing of permissions.
+     * LIST PERMISSIONS
+     * Called from permissions.js → loadPermissions()
+     * Endpoint: /admin/permissions/list
      */
     public function index(Request $request)
     {
         $query = Permission::with('roles');
 
-        // Search by name or guard_name
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('guard_name', 'like', "%{$search}%");
+        // Search: name or guard_name (case-insensitive)
+        if ($request->search) {
+            $searchTerm = strtolower($request->search);
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereRaw('LOWER(name) LIKE ?', ["%{$searchTerm}%"])
+                  ->orWhereRaw('LOWER(guard_name) LIKE ?', ["%{$searchTerm}%"]);
             });
         }
 
-        // Filter by guard_name
-        if ($request->has('guard_name')) {
+        // Filter by guard name
+        if ($request->guard_name) {
             $query->where('guard_name', $request->guard_name);
         }
 
-        $permissions = $query->orderBy('guard_name')->orderBy('name')->paginate($request->get('per_page', 15));
+        $permissions = $query
+            ->orderBy('guard_name')
+            ->orderBy('name')
+            ->paginate($request->per_page ?? 15);
 
         return response()->json([
             'status' => 'success',
-            'data' => $permissions
+            'data'   => $permissions
         ]);
     }
 
     /**
-     * Store a newly created permission.
+     * CREATE PERMISSION
+     * Called from permissions.js → savePermission()
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255|unique:permissions,name',
+            'name'       => 'required|string|max:255|unique:permissions,name',
             'guard_name' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
-            // Convert validation errors to user-friendly messages
-            $friendlyErrors = [];
-            $errors = $validator->errors();
-            
-            // Convert each error to user-friendly format
-            foreach ($errors->messages() as $field => $messages) {
-                $friendlyErrors[$field] = array_map(function($message) {
-                    return str_replace(
-                        [
-                            'The name field is required.',
-                            'The name has already been taken.',
-                            'The guard_name field is required.',
-                        ],
-                        [
-                            'Permission name is required.',
-                            'A permission with this name already exists.',
-                            'Guard name is required.',
-                        ],
-                        $message
-                    );
-                }, $messages);
-            }
-            
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Please fix the errors below',
-                'errors' => $friendlyErrors
+                'errors'  => $validator->errors()
             ], 422);
         }
 
-        $permission = Permission::create([
-            'name' => $request->name,
+        $perm = Permission::create([
+            'name'       => $request->name,
             'guard_name' => $request->guard_name ?? 'web',
         ]);
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Permission created successfully',
-            'data' => $permission
+            'data'    => $perm
         ], 201);
     }
 
     /**
-     * Display the specified permission.
+     * SHOW PERMISSION
+     * Called from permissions.js → editPermission()
      */
     public function show($id)
     {
@@ -101,19 +85,19 @@ class PermissionController extends Controller
 
         if (!$permission) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Permission not found'
             ], 404);
         }
 
         return response()->json([
             'status' => 'success',
-            'data' => $permission
+            'data'   => $permission
         ]);
     }
 
     /**
-     * Update the specified permission.
+     * UPDATE PERMISSION
      */
     public function update(Request $request, $id)
     {
@@ -121,62 +105,38 @@ class PermissionController extends Controller
 
         if (!$permission) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Permission not found'
             ], 404);
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'max:255', Rule::unique('permissions', 'name')->ignore($permission->id)],
+            'name'       => ['required', 'string', 'max:255', Rule::unique('permissions')->ignore($permission->id)],
             'guard_name' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
-            // Convert validation errors to user-friendly messages
-            $friendlyErrors = [];
-            $errors = $validator->errors();
-            
-            // Convert each error to user-friendly format
-            foreach ($errors->messages() as $field => $messages) {
-                $friendlyErrors[$field] = array_map(function($message) {
-                    return str_replace(
-                        [
-                            'The name field is required.',
-                            'The name has already been taken.',
-                            'The guard_name field is required.',
-                        ],
-                        [
-                            'Permission name is required.',
-                            'A permission with this name already exists.',
-                            'Guard name is required.',
-                        ],
-                        $message
-                    );
-                }, $messages);
-            }
-            
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Please fix the errors below',
-                'errors' => $friendlyErrors
+                'errors'  => $validator->errors()
             ], 422);
         }
 
         $permission->name = $request->name;
-        if ($request->has('guard_name')) {
-            $permission->guard_name = $request->guard_name;
-        }
+        $permission->guard_name = $request->guard_name ?? $permission->guard_name;
         $permission->save();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Permission updated successfully',
-            'data' => $permission
+            'data'    => $permission
         ]);
     }
 
     /**
-     * Remove the specified permission.
+     * DELETE PERMISSION
+     * Called from permissions.js → deletePermission()
      */
     public function destroy($id)
     {
@@ -184,30 +144,35 @@ class PermissionController extends Controller
 
         if (!$permission) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Permission not found'
             ], 404);
         }
 
+        // Laravel will auto-delete pivot relationships
         $permission->delete();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Permission deleted successfully'
         ]);
     }
 
     /**
-     * Get all guard names for filtering
+     * RETURN ALL UNIQUE GUARD NAMES
+     * Used by permissions.js → loadGuards()
      */
     public function getModules()
     {
-        $guards = Permission::distinct()->pluck('guard_name')->filter()->sort()->values();
+        $guards = Permission::distinct()
+            ->pluck('guard_name')
+            ->filter()
+            ->sort()
+            ->values();
 
         return response()->json([
             'status' => 'success',
-            'data' => $guards
+            'data'   => $guards
         ]);
     }
 }
-
