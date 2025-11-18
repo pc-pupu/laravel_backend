@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Log;
 
 class CmsContentController extends Controller
 {
@@ -83,8 +84,16 @@ class CmsContentController extends Controller
         $data = $this->mapPayload($validator->validated());
 
         if ($request->hasFile('content_file_upload')) {
-            $data = array_merge($data, $this->storeFile($request, $data['content_type']));
+            try {
+                $data = array_merge($data, $this->storeFile($request, $data['content_type']));
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
         }
+        // Log::info('Creating CMS Content', ['data' => $data]);
 
         $content = housingCms::create($data);
 
@@ -136,8 +145,15 @@ class CmsContentController extends Controller
         $data = $this->mapPayload($validator->validated(), $content);
 
         if ($request->hasFile('content_file_upload')) {
-            $this->removeExistingFile($content);
-            $data = array_merge($data, $this->storeFile($request, $data['content_type']));
+            try {
+                $this->removeExistingFile($content);
+                $data = array_merge($data, $this->storeFile($request, $data['content_type']));
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
         }
 
         $content->update($data);
@@ -184,9 +200,11 @@ class CmsContentController extends Controller
             'date_of_notification'=> 'required|string',
             'is_active'           => 'required|in:0,1',
             'is_new'              => 'nullable|in:0,1',
-            'content_file_upload' => ($isUpdate ? 'nullable' : 'nullable') . '|file|mimes:pdf|max:1024',
+            'content_file_upload' => ($isUpdate ? 'nullable' : 'nullable') . '|file|mimes:pdf|max:1024', // 1 MB = 1024 KB
         ], [
             'content_type.in' => 'Please select a valid content type.',
+            'content_file_upload.mimes' => 'Only PDF files are allowed.',
+            'content_file_upload.max' => 'The file size must not exceed 1 MB.',
         ]);
     }
 
@@ -235,14 +253,45 @@ class CmsContentController extends Controller
     protected function storeFile(Request $request, string $contentType): array
     {
         $file = $request->file('content_file_upload');
-        $safeName = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-        $filename = $safeName . '_' . now()->format('YmdHis') . '.' . $file->getClientOriginalExtension();
 
-        $path = $file->storeAs("doc/{$contentType}", $filename, 'public');
+        // Validate MIME type (PDF only)
+        $allowedMime = ['application/pdf'];
+        if (!in_array($file->getMimeType(), $allowedMime)) {
+            throw new \Exception('Invalid file type. Only PDF files are allowed.');
+        }
+
+        // Check for multiple extensions
+        $originalName = $file->getClientOriginalName();
+        if (substr_count($originalName, '.') > 1) {
+            throw new \Exception('Multiple extensions are not allowed.');
+        }
+
+        // Get filename without extension
+        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
+        // Sanitize filename: replace spaces and special chars with underscore
+        $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $originalName);
+
+        // Generate filename with timestamp
+        $timestamp = now()->format('Ymd_His');
+        $filename = $safeName . '_notification_' . $timestamp . '.' . $file->getClientOriginalExtension();
+
+        // Create directory path based on content_type
+        $directory = 'uploads/cms/' . $contentType;
+
+        // Create directory if it doesn't exist
+        if (!Storage::disk('public')->exists($directory)) {
+            Storage::disk('public')->makeDirectory($directory);
+        }
+
+        // Store the file
+        $file->storeAs($directory, $filename, 'public');
+
+        $relativePath = trim($contentType . '/' . $filename, '/');
 
         return [
             'file_name' => $file->getClientOriginalName(),
-            'file_path' => 'storage/' . $path,
+            'file_path' => $relativePath,
         ];
     }
 
@@ -252,14 +301,26 @@ class CmsContentController extends Controller
             return;
         }
 
-        $path = $content->file_path;
+        $storagePath = $this->resolveStoragePath($content->file_path);
 
-        if (Str::startsWith($path, 'storage/')) {
-            $relative = Str::replaceFirst('storage/', '', $path);
-            if (Storage::disk('public')->exists($relative)) {
-                Storage::disk('public')->delete($relative);
-            }
+        if ($storagePath && Storage::disk('public')->exists($storagePath)) {
+            Storage::disk('public')->delete($storagePath);
         }
+    }
+
+    protected function resolveStoragePath(string $path): string
+    {
+        $cleanPath = ltrim($path, '/');
+
+        if (Str::startsWith($cleanPath, 'storage/')) {
+            $cleanPath = Str::replaceFirst('storage/', '', $cleanPath);
+        }
+
+        if (Str::startsWith($cleanPath, 'uploads/')) {
+            return $cleanPath;
+        }
+
+        return 'uploads/cms/' . $cleanPath;
     }
 }
 

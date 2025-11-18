@@ -43,40 +43,64 @@ trait HandlesCmsContent
             'url'                 => $content->url,
             'file_name'           => $content->file_name,
             'file_path'           => $content->file_path,
-            'file_url'            => $this->buildCmsFileUrl($content->file_path),
+            'file_url'            => $this->buildCmsFileUrl($content->file_path, $content->content_type),
             'created_date'        => $content->created_date,
             'created_at'          => $content->created_date,
         ];
     }
 
-    protected function buildCmsFileUrl(?string $path): ?string
+    protected function buildCmsFileUrl(?string $path, ?string $contentType = null): ?string
     {
         if (!$path) {
             return null;
         }
 
-        // Already an absolute URL
-        if (Str::startsWith($path, ['http://', 'https://'])) {
-            return $path;
+        $normalized = $this->normalizeFilePathForToken($path, $contentType);
+
+        try {
+            $token = encrypt($normalized);
+        } catch (\Exception $e) {
+            return null;
         }
 
-        // Legacy Drupal "public://" path
-        if (Str::startsWith($path, 'public://')) {
-            $cleanPath = Str::replaceFirst('public://', '', $path);
-            return asset('storage/' . ltrim($cleanPath, '/'));
+        $typeSegment = $this->extractTypeFromPath($normalized, $contentType);
+
+        return url('cms/' . $typeSegment . '/' . urlencode($token));
+    }
+
+    protected function normalizeFilePathForToken(string $path, ?string $contentType = null): string
+    {
+        $cleanPath = ltrim($path, '/');
+
+        if (Str::startsWith($cleanPath, 'public://')) {
+            $cleanPath = Str::replaceFirst('public://', '', $cleanPath);
         }
 
-        // Stored as "storage/..." from Laravel
-        if (Str::startsWith($path, 'storage/')) {
-            return asset($path);
+        if (Str::startsWith($cleanPath, 'storage/')) {
+            $cleanPath = Str::replaceFirst('storage/', '', $cleanPath);
         }
 
-        // Raw path within storage disk
-        if (Storage::disk('public')->exists($path)) {
-            return Storage::url($path);
+        if (Str::startsWith($cleanPath, 'uploads/cms/')) {
+            $cleanPath = Str::replaceFirst('uploads/cms/', '', $cleanPath);
+        } elseif (Str::startsWith($cleanPath, 'uploads/')) {
+            $cleanPath = Str::replaceFirst('uploads/', '', $cleanPath);
         }
 
-        return asset($path);
+        if (!$contentType) {
+            $contentType = Str::before($cleanPath, '/') ?: 'file';
+        }
+
+        if (!Str::startsWith($cleanPath, $contentType . '/')) {
+            $cleanPath = trim($contentType . '/' . basename($cleanPath), '/');
+        }
+
+        return $cleanPath;
+    }
+
+    protected function extractTypeFromPath(string $path, ?string $fallback = null): string
+    {
+        $segments = explode('/', trim($path, '/'));
+        return $segments[0] ?? ($fallback ?: 'file');
     }
 }
 
