@@ -43,34 +43,34 @@ trait HandlesCmsContent
             'url'                 => $content->url,
             'file_name'           => $content->file_name,
             'file_path'           => $content->file_path,
-            'file_url'            => $this->buildCmsFileUrl($content->file_path, $content->content_type),
+            'file_url'            => $this->buildCmsFileUrl($content),
             'created_date'        => $content->created_date,
             'created_at'          => $content->created_date,
         ];
     }
 
-    protected function buildCmsFileUrl(?string $path, ?string $contentType = null): ?string
+    protected function buildCmsFileUrl(housingCms $content): ?string
     {
-        if (!$path) {
+        if (!$content->file_path) {
             return null;
         }
 
-        $normalized = $this->normalizeFilePathForToken($path, $contentType);
+        $normalized = $this->normalizeFilePathForToken($content->file_path, $content->content_type);
+        $idFragment = $this->encodeIdFragment($content->housing_cms_id);
+        $signature = $this->generateSignature($content->housing_cms_id, $normalized);
+        $token = $idFragment . '.' . $signature;
 
-        try {
-            $token = encrypt($normalized);
-        } catch (\Exception $e) {
-            return null;
-        }
-
-        $typeSegment = $this->extractTypeFromPath($normalized, $contentType);
-
-        return url('cms/' . $typeSegment . '/' . urlencode($token));
+        return url('cms/' . $content->content_type . '/' . $token);
     }
 
     protected function normalizeFilePathForToken(string $path, ?string $contentType = null): string
     {
         $cleanPath = ltrim($path, '/');
+
+        if (!$contentType) {
+            $guessed = Str::before($cleanPath, '/') ?: 'file';
+            $contentType = $this->normalizeContentType($guessed);
+        }
 
         if (Str::startsWith($cleanPath, 'public://')) {
             $cleanPath = Str::replaceFirst('public://', '', $cleanPath);
@@ -90,17 +90,28 @@ trait HandlesCmsContent
             $contentType = Str::before($cleanPath, '/') ?: 'file';
         }
 
-        if (!Str::startsWith($cleanPath, $contentType . '/')) {
-            $cleanPath = trim($contentType . '/' . basename($cleanPath), '/');
+        if (!Str::startsWith($cleanPath, 'uploads/')) {
+            $filename = basename($cleanPath);
+            $cleanPath = 'uploads/cms/' . $contentType . '/' . $filename;
+        } else {
+            $cleanPath = trim($cleanPath, '/');
+
+            if (!Str::startsWith($cleanPath, 'uploads/cms/')) {
+                $cleanPath = 'uploads/cms/' . trim($cleanPath, '/');
+            }
         }
 
         return $cleanPath;
     }
 
-    protected function extractTypeFromPath(string $path, ?string $fallback = null): string
+    protected function encodeIdFragment(int $id): string
     {
-        $segments = explode('/', trim($path, '/'));
-        return $segments[0] ?? ($fallback ?: 'file');
+        return rtrim(strtr(base64_encode((string) $id), '+/', '-_'), '=');
+    }
+
+    protected function generateSignature(int $id, string $normalizedPath): string
+    {
+        return hash_hmac('sha256', $id . '|' . $normalizedPath, config('app.key'));
     }
 }
 
