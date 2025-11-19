@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\CmsContentController;
 use App\Http\Controllers\Api\CmsContentPublicController;
 use App\Http\Controllers\Api\SidebarMenuController;
+use App\Http\Controllers\Api\ExistingApplicantController;
+use App\Http\Controllers\Api\ExistingOccupantController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
@@ -58,6 +60,36 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('sidebar-menus/{id}', [SidebarMenuController::class, 'show']);
         Route::put('sidebar-menus/{id}', [SidebarMenuController::class, 'update']);
         Route::delete('sidebar-menus/{id}', [SidebarMenuController::class, 'destroy']);
+
+        // Existing Applicant (Legacy/Physical Applicants)
+        Route::get('existing-applicants', [ExistingApplicantController::class, 'index']);
+        Route::get('existing-applicants/with-hrms', [ExistingApplicantController::class, 'withHrms']);
+        Route::get('existing-applicants/without-hrms', [ExistingApplicantController::class, 'withoutHrms']);
+        Route::get('existing-applicants/search', [ExistingApplicantController::class, 'search']);
+        Route::post('existing-applicants', [ExistingApplicantController::class, 'store']);
+        Route::get('existing-applicants/{id}', [ExistingApplicantController::class, 'show']);
+        Route::put('existing-applicants/{id}', [ExistingApplicantController::class, 'update']);
+        Route::post('existing-applicants/{id}/accept-declaration', [ExistingApplicantController::class, 'acceptDeclaration']);
+
+        // Existing Occupant
+        Route::get('existing-occupants', [ExistingOccupantController::class, 'index']);
+        Route::get('existing-occupants/with-hrms', [ExistingOccupantController::class, 'withHrms']);
+        Route::get('existing-occupants/without-hrms', [ExistingOccupantController::class, 'withoutHrms']);
+        Route::get('existing-occupants/flat/{flat_id}', [ExistingOccupantController::class, 'getByFlat']);
+        Route::get('existing-occupants/flat/{flat_id}/check', [ExistingOccupantController::class, 'checkFlatOccupancy']);
+        Route::get('existing-occupants/flat/{flat_id}/details', [ExistingOccupantController::class, 'getFlatDetails']);
+        Route::get('existing-occupants/draft', [ExistingOccupantController::class, 'listDrafts']);
+        Route::get('existing-occupants/meta/rhe-list', [ExistingOccupantController::class, 'getRheList']);
+        Route::get('existing-occupants/meta/flat-types/{rhe_id}', [ExistingOccupantController::class, 'getFlatTypes']);
+        Route::get('existing-occupants/meta/blocks/{rhe_id}/{flat_type_id}', [ExistingOccupantController::class, 'getBlocks']);
+        Route::get('existing-occupants/meta/flats/{rhe_id}/{flat_type_id}/{block_id}', [ExistingOccupantController::class, 'getAvailableFlats']);
+        Route::get('existing-occupants/meta/districts', [ExistingOccupantController::class, 'getDistricts']);
+        Route::get('existing-occupants/meta/ddo-list', [ExistingOccupantController::class, 'getDdoList']);
+        Route::get('existing-occupants/meta/pay-bands', [ExistingOccupantController::class, 'getPayBands']);
+        Route::post('existing-occupants', [ExistingOccupantController::class, 'store']);
+        Route::get('existing-occupants/{id}', [ExistingOccupantController::class, 'show']);
+        Route::put('existing-occupants/{id}', [ExistingOccupantController::class, 'update']);
+        Route::delete('existing-occupants/{id}', [ExistingOccupantController::class, 'destroy']);
     });
 });
 
