@@ -11,7 +11,10 @@ use App\Http\Controllers\Api\CmsContentController;
 use App\Http\Controllers\Api\CmsContentPublicController;
 use App\Http\Controllers\Api\SidebarMenuController;
 use App\Http\Controllers\Api\ExistingApplicantController;
+use App\Http\Controllers\Api\ExistingApplicantHelperController;
 use App\Http\Controllers\Api\ExistingOccupantController;
+use App\Http\Controllers\Api\ExistingApplicantVsCsController;
+use App\Http\Controllers\Api\ExistingApplicantVsCsHelperController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
@@ -70,6 +73,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('existing-applicants/{id}', [ExistingApplicantController::class, 'show']);
         Route::put('existing-applicants/{id}', [ExistingApplicantController::class, 'update']);
         Route::post('existing-applicants/{id}/accept-declaration', [ExistingApplicantController::class, 'acceptDeclaration']);
+        
+        // Existing Applicant Helper Endpoints
+        Route::get('existing-applicants-helpers/districts', [ExistingApplicantHelperController::class, 'districts']);
+        Route::get('existing-applicants-helpers/pay-bands', [ExistingApplicantHelperController::class, 'payBands']);
+        Route::get('existing-applicants-helpers/rhe-flat-type', [ExistingApplicantHelperController::class, 'rheFlatType']);
+        Route::get('existing-applicants-helpers/allotment-categories', [ExistingApplicantHelperController::class, 'allotmentCategories']);
+        Route::get('existing-applicants-helpers/ddo-designations', [ExistingApplicantHelperController::class, 'ddoDesignations']);
+        Route::get('existing-applicants-helpers/ddo-address', [ExistingApplicantHelperController::class, 'ddoAddress']);
+        Route::get('existing-applicants-helpers/flat-type-id', [ExistingApplicantHelperController::class, 'flatTypeId']);
 
         // Existing Occupant
         Route::get('existing-occupants', [ExistingOccupantController::class, 'index']);
@@ -90,6 +102,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('existing-occupants/{id}', [ExistingOccupantController::class, 'show']);
         Route::put('existing-occupants/{id}', [ExistingOccupantController::class, 'update']);
         Route::delete('existing-occupants/{id}', [ExistingOccupantController::class, 'destroy']);
+
+        // Existing Applicant VS/CS (Floor Shifting / Category Shifting)
+        Route::get('existing-applicant-vs-cs/flat-details', [ExistingApplicantVsCsController::class, 'getFlatApplicantDetails']);
+        Route::post('existing-applicant-vs-cs', [ExistingApplicantVsCsController::class, 'store']);
+        Route::get('existing-applicant-vs-cs/vs-list-with-hrms', [ExistingApplicantVsCsController::class, 'vsListWithHrms']);
+        Route::get('existing-applicant-vs-cs/vs-list-without-hrms', [ExistingApplicantVsCsController::class, 'vsListWithoutHrms']);
+        Route::get('existing-applicant-vs-cs/cs-list-with-hrms', [ExistingApplicantVsCsController::class, 'csListWithHrms']);
+        Route::get('existing-applicant-vs-cs/cs-list-without-hrms', [ExistingApplicantVsCsController::class, 'csListWithoutHrms']);
+        Route::get('existing-applicant-vs-cs/{id}', [ExistingApplicantVsCsController::class, 'show']);
+        Route::put('existing-applicant-vs-cs/{id}', [ExistingApplicantVsCsController::class, 'update']);
+
+        // Existing Applicant VS/CS Helper Endpoints
+        Route::get('existing-applicant-vs-cs-helpers/rhe-list', [ExistingApplicantVsCsHelperController::class, 'getRheList']);
+        Route::get('existing-applicant-vs-cs-helpers/flat-types', [ExistingApplicantVsCsHelperController::class, 'getFlatTypesUnderRhe']);
+        Route::get('existing-applicant-vs-cs-helpers/blocks', [ExistingApplicantVsCsHelperController::class, 'getBlocksUnderRhe']);
+        Route::get('existing-applicant-vs-cs-helpers/flats', [ExistingApplicantVsCsHelperController::class, 'getFlatsUnderRhe']);
+        Route::get('existing-applicant-vs-cs-helpers/housing-estates', [ExistingApplicantVsCsHelperController::class, 'getHousingEstates']);
+        Route::get('existing-applicant-vs-cs-helpers/housing-blocks', [ExistingApplicantVsCsHelperController::class, 'getHousingBlocks']);
+        Route::get('existing-applicant-vs-cs-helpers/housing-flats', [ExistingApplicantVsCsHelperController::class, 'getHousingFlats']);
+        Route::get('existing-applicant-vs-cs-helpers/possession-date', [ExistingApplicantVsCsHelperController::class, 'getPossessionDate']);
     });
 });
 

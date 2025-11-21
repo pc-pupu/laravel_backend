@@ -24,6 +24,7 @@ class SidebarMenuController extends Controller
             ], 401);
         }
 
+        // \Log::info('Fetching sidebar menus for user ID: ' . $user);
         // Get user's role IDs
         $roleIds = $user->roles()->pluck('id')->toArray();
 
