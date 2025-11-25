@@ -12,10 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // GLOBAL CORS (MUST)
+        $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);
+
+        // API group CORS (optional but safe)
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
     })
+
     ->withExceptions(function (Exceptions $exceptions) {
         // Log all exceptions to error_logs table
         $exceptions->report(function (\Throwable $e) {
