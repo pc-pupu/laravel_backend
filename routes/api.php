@@ -49,6 +49,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('permissions/{id}', [PermissionController::class, 'update']);
         Route::delete('permissions/{id}', [PermissionController::class, 'destroy']);
 
+        // Sidebar Menus Management
+        Route::get('sidebar-menus/all', [SidebarMenuController::class, 'all']);
+        Route::post('sidebar-menus', [SidebarMenuController::class, 'store']);
+        Route::get('sidebar-menus/{id}', [SidebarMenuController::class, 'show']);
+        Route::put('sidebar-menus/{id}', [SidebarMenuController::class, 'update']);
+        Route::delete('sidebar-menus/{id}', [SidebarMenuController::class, 'destroy']);
+        
+    });
         // CMS Content
         Route::get('cms-content', [CmsContentController::class, 'index']);
         Route::get('cms-content/meta/stats', [CmsContentController::class, 'stats']);
@@ -57,12 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('cms-content/{id}', [CmsContentController::class, 'update']);
         Route::delete('cms-content/{id}', [CmsContentController::class, 'destroy']);
 
-        // Sidebar Menus Management
-        Route::get('sidebar-menus/all', [SidebarMenuController::class, 'all']);
-        Route::post('sidebar-menus', [SidebarMenuController::class, 'store']);
-        Route::get('sidebar-menus/{id}', [SidebarMenuController::class, 'show']);
-        Route::put('sidebar-menus/{id}', [SidebarMenuController::class, 'update']);
-        Route::delete('sidebar-menus/{id}', [SidebarMenuController::class, 'destroy']);
+        
 
         // Existing Applicant (Legacy/Physical Applicants)
         Route::get('existing-applicants', [ExistingApplicantController::class, 'index']);
@@ -122,7 +125,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('existing-applicant-vs-cs-helpers/housing-blocks', [ExistingApplicantVsCsHelperController::class, 'getHousingBlocks']);
         Route::get('existing-applicant-vs-cs-helpers/housing-flats', [ExistingApplicantVsCsHelperController::class, 'getHousingFlats']);
         Route::get('existing-applicant-vs-cs-helpers/possession-date', [ExistingApplicantVsCsHelperController::class, 'getPossessionDate']);
-    });
+    
 });
 
 

@@ -86,6 +86,12 @@ class CmsContentController extends Controller
         if ($request->hasFile('content_file_upload')) {
             try {
                 $data = array_merge($data, $this->storeFile($request, $data['content_type']));
+                $content = housingCms::create($data);
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => 'Content added successfully.',
+                    'data'    => $this->formatCmsContent($content),
+                ], 201);
             } catch (\Exception $e) {
                 return response()->json([
                     'status'  => 'error',
@@ -94,14 +100,6 @@ class CmsContentController extends Controller
             }
         }
         // Log::info('Creating CMS Content', ['data' => $data]);
-
-        $content = housingCms::create($data);
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Content added successfully.',
-            'data'    => $this->formatCmsContent($content),
-        ], 201);
     }
 
     public function show($id)
