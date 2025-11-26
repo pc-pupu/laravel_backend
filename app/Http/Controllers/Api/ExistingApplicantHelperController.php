@@ -156,22 +156,26 @@ class ExistingApplicantHelperController extends Controller
     {
         $ddoId = $request->input('ddo_id');
 
+
         if (!$ddoId) {
             return response()->json([
                 'status' => 'success',
                 'data' => '',
             ]);
         }
-
+        
         $address = DB::table('housing_ddo')
             ->where('ddo_id', $ddoId)
-            ->value('address');
+            ->value('ddo_address');
+
+        // \Log::info('DDO address fetched', ['ddo_id' => $ddoId, 'address' => $address]);
 
         return response()->json([
             'status' => 'success',
             'data' => $address ?? '',
         ]);
     }
+
 
     /**
      * Get flat type ID from flat type name

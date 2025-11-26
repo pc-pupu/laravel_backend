@@ -314,7 +314,7 @@ class ExistingApplicantController extends Controller
         // Check email uniqueness
         if (!empty($data['email'])) {
             $emailExists = DB::table('users')
-                ->where('mail', trim($data['email']))
+                ->where('email', trim($data['email']))
                 ->exists();
             
             if ($emailExists) {
@@ -340,27 +340,32 @@ class ExistingApplicantController extends Controller
                 ], 422);
             }
         }
-
+\Log::info('beginTransaction');
         DB::beginTransaction();
         try {
+            
             // Generate username
             $username = ExistingApplicantService::generateUsername(
                 $data['applicant_name'],
                 $physicalApplicationNo,
                 $computerSerialNo
             );
+\Log::info('User Data Output', ['userdata' => $username]);
+            $loginName = !empty($data['hrms_id']) ? trim($data['hrms_id']) : $username;
 
             // Create user
             $userData = [
-                'name' => !empty($data['hrms_id']) ? trim($data['hrms_id']) : $username,
-                'pass' => Hash::make(!empty($data['hrms_id']) ? trim($data['hrms_id']) : $username),
-                'mail' => !empty($data['email']) ? trim($data['email']) : null,
+                'name' => $loginName,
+                'password' => Hash::make($loginName),
+                'password_old' => Hash::make($loginName),
+                'email' => !empty($data['email']) ? trim($data['email']) : null,
                 'status' => 1,
-                'created' => time(),
-                'access' => time(),
+                'new_pass_set' => 1,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
             ];
 
-            $uid = DB::table('users')->insertGetId($userData);
+            $uid = DB::table('users')->insertGetId($userData, 'uid');
 
             // Insert into housing_applicant
             $applicantData = [
@@ -382,7 +387,9 @@ class ExistingApplicantController extends Controller
                 'present_pincode' => !empty($data['present_pincode']) ? trim($data['present_pincode']) : null,
             ];
 
-            $housingApplicantId = DB::table('housing_applicant')->insertGetId($applicantData);
+            // \Log::info('Applicant Data Output', ['applicantdata' => $applicantData]);
+
+            $housingApplicantId = DB::table('housing_applicant')->insertGetId($applicantData,'housing_applicant_id');
 
             // Assign user role (role ID 4 based on Drupal code)
             DB::table('users_roles')->insert([
@@ -412,7 +419,7 @@ class ExistingApplicantController extends Controller
                 'ddo_id' => !empty($data['designation']) ? (int) $data['designation'] : null,
             ];
 
-            $applicantOfficialDetailId = DB::table('housing_applicant_official_detail')->insertGetId($officialDetailData);
+            $applicantOfficialDetailId = DB::table('housing_applicant_official_detail')->insertGetId($officialDetailData,'applicant_official_detail_id');
 
             // Insert into housing_online_application
             $onlineAppData = [
@@ -426,7 +433,7 @@ class ExistingApplicantController extends Controller
                 'remarks' => !empty($data['remarks']) ? $data['remarks'] : null,
             ];
 
-            $onlineApplicationId = DB::table('housing_online_application')->insertGetId($onlineAppData);
+            $onlineApplicationId = DB::table('housing_online_application')->insertGetId($onlineAppData,'online_application_id');
 
             // Update application number
             $doaParts = explode('/', $data['doa']);
@@ -446,7 +453,7 @@ class ExistingApplicantController extends Controller
             // Handle file upload if provided
             if ($request->hasFile('extra_doc')) {
                 $file = $request->file('extra_doc');
-                $directory = 'doc/extra_doc';
+                $directory = 'uploads/doc/extra_doc';
                 if (!Storage::disk('public')->exists($directory)) {
                     Storage::disk('public')->makeDirectory($directory);
                 }
@@ -467,6 +474,7 @@ class ExistingApplicantController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
+            // \Log::info('test',[$e]);
             DB::rollBack();
             return response()->json([
                 'status' => 'error',
@@ -571,7 +579,7 @@ class ExistingApplicantController extends Controller
         // Check email uniqueness (excluding current user)
         if (!empty($data['email'])) {
             $emailExists = DB::table('users')
-                ->where('mail', trim($data['email']))
+                ->where('email', trim($data['email']))
                 ->where('uid', '!=', $data['app_uid'])
                 ->exists();
             
@@ -614,16 +622,18 @@ class ExistingApplicantController extends Controller
                 $computerSerialNo
             );
 
+            $loginName = !empty($data['hrms_id']) ? trim($data['hrms_id']) : $username;
+
             // Update user
             $userData = [
-                'name' => !empty($data['hrms_id']) ? trim($data['hrms_id']) : $username,
-                'pass' => Hash::make(!empty($data['hrms_id']) ? trim($data['hrms_id']) : $username),
+                'name' => $loginName,
+                'password' => Hash::make($loginName),
+                'password_old' => Hash::make($loginName),
+                'email' => !empty($data['email']) ? trim($data['email']) : null,
+                'new_pass_set' => 1,
+                'updated_at' => Carbon::now(),
             ];
-            
-            if (!empty($data['email'])) {
-                $userData['mail'] = trim($data['email']);
-            }
-            
+
             DB::table('users')
                 ->where('uid', $uid)
                 ->update($userData);

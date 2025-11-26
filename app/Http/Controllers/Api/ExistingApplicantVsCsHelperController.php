@@ -112,6 +112,7 @@ class ExistingApplicantVsCsHelperController extends Controller
         $flatTypeId = $request->query('flat_type_id');
         $blockId = $request->query('block_id');
 
+        
         if (!$rheId || !$flatTypeId || !$blockId) {
             return response()->json(['status' => 'error', 'message' => 'RHE ID, Flat Type ID, and Block ID are required.'], 400);
         }
@@ -128,7 +129,7 @@ class ExistingApplicantVsCsHelperController extends Controller
             ->mapWithKeys(function ($item) {
                 return [$item->flat_id => $item->flat_no];
             });
-
+            // \Log::info('error log',[$flats]);
         return response()->json(['status' => 'success', 'data' => $flats]);
     }
 
