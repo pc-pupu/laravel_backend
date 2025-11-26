@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\ExistingApplicantHelperController;
 use App\Http\Controllers\Api\ExistingOccupantController;
 use App\Http\Controllers\Api\ExistingApplicantVsCsController;
 use App\Http\Controllers\Api\ExistingApplicantVsCsHelperController;
+use App\Http\Controllers\Api\EstateTreasuryMappingController;
+use App\Http\Controllers\Api\EstateTreasuryMappingHelperController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
@@ -125,6 +127,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('existing-applicant-vs-cs-helpers/housing-blocks', [ExistingApplicantVsCsHelperController::class, 'getHousingBlocks']);
         Route::get('existing-applicant-vs-cs-helpers/housing-flats', [ExistingApplicantVsCsHelperController::class, 'getHousingFlats']);
         Route::get('existing-applicant-vs-cs-helpers/possession-date', [ExistingApplicantVsCsHelperController::class, 'getPossessionDate']);
+
+        // Estate Treasury Mapping
+        Route::get('estate-treasury-mapping', [EstateTreasuryMappingController::class, 'index']);
+        Route::post('estate-treasury-mapping', [EstateTreasuryMappingController::class, 'store']);
+        Route::get('estate-treasury-mapping/{id}', [EstateTreasuryMappingController::class, 'show']);
+        Route::put('estate-treasury-mapping/{id}', [EstateTreasuryMappingController::class, 'update']);
+        Route::delete('estate-treasury-mapping/{id}', [EstateTreasuryMappingController::class, 'destroy']);
+
+        // Estate Treasury Mapping Helper Endpoints
+        Route::get('estate-treasury-mapping-helpers/estates', [EstateTreasuryMappingHelperController::class, 'getEstates']);
+        Route::get('estate-treasury-mapping-helpers/treasuries', [EstateTreasuryMappingHelperController::class, 'getTreasuries']);
     
 });
 

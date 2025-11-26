@@ -16,6 +16,7 @@ class ExistingApplicantVsCsController extends Controller
      */
     public function getFlatApplicantDetails(Request $request)
     {
+        
         $validator = Validator::make($request->all(), [
             'rhe_name' => 'required|integer',
             'flat_type' => 'required|integer',
