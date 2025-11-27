@@ -8,15 +8,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Crypt;
+
 
 class ExistingApplicantVsCsController extends Controller
 {
     /**
      * Get flat-wise existing applicant details
      */
+    
     public function getFlatApplicantDetails(Request $request)
     {
-        
         $validator = Validator::make($request->all(), [
             'rhe_name' => 'required|integer',
             'flat_type' => 'required|integer',
@@ -25,176 +27,170 @@ class ExistingApplicantVsCsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
-        $rheName = $request->input('rhe_name');
-        $flatType = $request->input('flat_type');
-        $blockName = $request->input('block_name');
-        $flatId = $request->input('flat_id');
+        $rheName  = $request->rhe_name;
+        $flatType = $request->flat_type;
+        $blockName = $request->block_name;
+        $flatId   = $request->flat_id;
 
-        // Get user details for division/subdiv filtering
-        $user = auth()->user();
-        $userDetails = DB::table('users_details')->where('uid', $user->uid)->first();
+        // Logged-in user details
+        $uid = auth()->user()->uid;
+        $userDetails = DB::table('users_details')->where('uid', $uid)->first();
 
-        $data = null;
+        /** -----------------------------------------
+         *  🔹 Build Main Query (for housing_applicant)
+         * ------------------------------------------
+         */
+        $baseQuery = DB::table('housing_applicant as ha')
+            ->join('housing_applicant_official_detail as haod', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
+            ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
+            ->join('housing_flat_occupant as hfo', 'hfo.online_application_id', '=', 'hoa.online_application_id')
+            ->join('housing_flat as hf', 'hf.flat_id', '=', 'hfo.flat_id')
+            ->join('housing_estate as he', 'he.estate_id', '=', 'hf.estate_id')
+            ->join('housing_block as hb', 'hb.block_id', '=', 'hf.block_id')
+            ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hf.flat_type_id')
+            ->join('users as u', 'u.uid', '=', 'haod.uid')
+            ->where('hoa.status', 'existing_occupant')
+            ->select([
+                'hoa.online_application_id',
+                'ha.applicant_name',
+                'he.estate_name',
+                'hft.flat_type',
+                'haod.hrms_id',
+                'u.status',
+                'haod.uid',
+                'hf.flat_id',
+                'hb.block_name',
+                'hf.flat_no',
+            ]);
 
-        if ($userDetails && !empty($userDetails->division_id) && !empty($userDetails->subdiv_id)) {
-            if ($userDetails->subdiv_id != 0) {
-                // Query with both division and subdiv
-                $query = DB::table('housing_applicant as ha')
-                    ->join('housing_applicant_official_detail as haod', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
-                    ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
-                    ->join('housing_flat_occupant as hfo', 'hfo.online_application_id', '=', 'hoa.online_application_id')
-                    ->join('housing_flat as hf', 'hf.flat_id', '=', 'hfo.flat_id')
-                    ->join('housing_estate as he', 'he.estate_id', '=', 'hf.estate_id')
-                    ->join('housing_block as hb', 'hb.block_id', '=', 'hf.block_id')
-                    ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hf.flat_type_id')
-                    ->join('users as u', 'u.uid', '=', 'haod.uid')
-                    ->where('hoa.status', 'existing_occupant')
-                    ->where('he.division_id', $userDetails->division_id)
-                    ->where('he.subdiv_id', $userDetails->subdiv_id)
-                    ->where('hf.estate_id', $rheName)
-                    ->where('hf.flat_type_id', $flatType)
-                    ->where('hf.block_id', $blockName)
-                    ->where('hf.flat_id', $flatId)
-                    ->select([
-                        'hoa.online_application_id',
-                        'ha.applicant_name',
-                        'he.estate_name',
-                        'hft.flat_type',
-                        'haod.hrms_id',
-                        'u.status as user_status',
-                        'haod.uid',
-                        'hf.flat_id',
-                        'hb.block_name',
-                        'hf.flat_no'
-                    ])
-                    ->first();
+        /** -----------------------------------------
+         *  🔹 Apply RHE / BLOCK / TYPE conditions
+         * ------------------------------------------
+         */
+        if ($rheName && $flatType && $blockName && $flatId) {
+            $baseQuery->where([
+                ['hf.estate_id', $rheName],
+                ['hf.flat_type_id', $flatType],
+                ['hf.block_id', $blockName],
+                ['hf.flat_id', $flatId],
+            ]);
+        }
 
-                if (empty($data)) {
-                    // Check draft table
-                    $data = DB::table('housing_existing_occupant_draft as head')
-                        ->join('housing_flat as hf', 'hf.flat_id', '=', 'head.flat_id')
-                        ->join('housing_estate as he', 'he.estate_id', '=', 'hf.estate_id')
-                        ->join('housing_block as hb', 'hb.block_id', '=', 'hf.block_id')
-                        ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hf.flat_type_id')
-                        ->where('he.division_id', $userDetails->division_id)
-                        ->where('he.subdiv_id', $userDetails->subdiv_id)
-                        ->where('hf.estate_id', $rheName)
-                        ->where('hf.flat_type_id', $flatType)
-                        ->where('hf.block_id', $blockName)
-                        ->where('hf.flat_id', $flatId)
-                        ->select([
-                            'head.applicant_name',
-                            'head.housing_existing_occupant_draft_id',
-                            'he.estate_name',
-                            'hft.flat_type',
-                            'hf.flat_id',
-                            'hb.block_name',
-                            'hf.flat_no'
-                        ])
-                        ->first();
-                }
-            } else {
-                // Query with only division
-                $query = DB::table('housing_applicant as ha')
-                    ->join('housing_applicant_official_detail as haod', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
-                    ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
-                    ->join('housing_flat_occupant as hfo', 'hfo.online_application_id', '=', 'hoa.online_application_id')
-                    ->join('housing_flat as hf', 'hf.flat_id', '=', 'hfo.flat_id')
-                    ->join('housing_estate as he', 'he.estate_id', '=', 'hf.estate_id')
-                    ->join('housing_block as hb', 'hb.block_id', '=', 'hf.block_id')
-                    ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hf.flat_type_id')
-                    ->join('users as u', 'u.uid', '=', 'haod.uid')
-                    ->where('hoa.status', 'existing_occupant')
-                    ->where('he.division_id', $userDetails->division_id)
-                    ->where('hf.estate_id', $rheName)
-                    ->where('hf.flat_type_id', $flatType)
-                    ->where('hf.block_id', $blockName)
-                    ->where('hf.flat_id', $flatId)
-                    ->select([
-                        'hoa.online_application_id',
-                        'ha.applicant_name',
-                        'he.estate_name',
-                        'hft.flat_type',
-                        'haod.hrms_id',
-                        'u.status as user_status',
-                        'haod.uid',
-                        'hf.flat_id',
-                        'hb.block_name',
-                        'hf.flat_no'
-                    ])
-                    ->first();
+        /** -----------------------------------------
+         *  🔹 Apply division/subdivision filters (if available)
+         * ------------------------------------------
+         */
+        if ($userDetails && !empty($userDetails->division_id)) {
 
-                if (empty($data)) {
-                    // Check draft table
-                    $data = DB::table('housing_existing_occupant_draft as head')
-                        ->join('housing_flat as hf', 'hf.flat_id', '=', 'head.flat_id')
-                        ->join('housing_estate as he', 'he.estate_id', '=', 'hf.estate_id')
-                        ->join('housing_block as hb', 'hb.block_id', '=', 'hf.block_id')
-                        ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hf.flat_type_id')
-                        ->where('he.division_id', $userDetails->division_id)
-                        ->where('hf.estate_id', $rheName)
-                        ->where('hf.flat_type_id', $flatType)
-                        ->where('hf.block_id', $blockName)
-                        ->where('hf.flat_id', $flatId)
-                        ->select([
-                            'head.applicant_name',
-                            'head.housing_existing_occupant_draft_id',
-                            'he.estate_name',
-                            'hft.flat_type',
-                            'hf.flat_id',
-                            'hb.block_name',
-                            'hf.flat_no'
-                        ])
-                        ->first();
-                }
+            $baseQuery->where('he.division_id', $userDetails->division_id);
+
+            if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
+                $baseQuery->where('he.subdiv_id', $userDetails->subdiv_id);
             }
         }
 
-        if (empty($data)) {
-            return response()->json(['status' => 'error', 'message' => 'No applicant found for this flat.'], 404);
+        // Fetch main applicant data
+        $data = $baseQuery->first();
+
+        /** -----------------------------------------
+         *  🔹 If NO data → check housing_existing_occupant_draft
+         * ------------------------------------------
+         */
+        if (!$data) {
+            $draftQuery = DB::table('housing_existing_occupant_draft as head')
+                ->join('housing_flat as hf', 'hf.flat_id', '=', 'head.flat_id')
+                ->join('housing_estate as he', 'he.estate_id', '=', 'hf.estate_id')
+                ->join('housing_block as hb', 'hb.block_id', '=', 'hf.block_id')
+                ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hf.flat_type_id')
+                ->select([
+                    'head.applicant_name',
+                    'head.housing_existing_occupant_draft_id',
+                    'he.estate_name',
+                    'hft.flat_type',
+                    'hf.flat_id',
+                    'hb.block_name',
+                    'hf.flat_no',
+                ]);
+
+            // Apply RHE filters
+            if ($rheName && $flatType && $blockName && $flatId) {
+                $draftQuery->where([
+                    ['hf.estate_id', $rheName],
+                    ['hf.flat_type_id', $flatType],
+                    ['hf.block_id', $blockName],
+                    ['hf.flat_id', $flatId],
+                ]);
+            }
+
+            // Apply division filters
+            if ($userDetails && !empty($userDetails->division_id)) {
+                $draftQuery->where('he.division_id', $userDetails->division_id);
+
+                if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
+                    $draftQuery->where('he.subdiv_id', $userDetails->subdiv_id);
+                }
+            }
+
+            $data = $draftQuery->first();
         }
 
-        // Check if already applied for VS/CS
+       
+        if (!$data) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No applicant found for this flat.',
+            ], 404);
+        }
+
+        /** -----------------------------------------
+         *  🔹 Check VS/CS applications for same flat
+         * ------------------------------------------
+         */
+        $uidValue = $data->uid ?? ($data->housing_existing_occupant_draft_id ?? 0);
+
+        $existingVs = DB::table('housing_vs_application')
+            ->where('occupation_flat', $flatId)
+            ->exists();
+
+        $existingCs = DB::table('housing_cs_application')
+            ->where('occupation_flat', $flatId)
+            ->exists();
+
         $alreadyApplied = false;
 
-        if (isset($data->online_application_id) || isset($data->uid)) {
-            // Check if there's already a VS or CS application for this flat
-            $existingVs = DB::table('housing_vs_application')
-                ->where('occupation_flat', $flatId)
+        if ($existingVs || $existingCs) {
+            $vs = DB::table('housing_vs_application as hva')
+                ->join('housing_online_application as hoa', 'hoa.online_application_id', '=', 'hva.online_application_id')
+                ->join('housing_applicant_official_detail as haod', 'haod.applicant_official_detail_id', '=', 'hoa.applicant_official_detail_id')
+                ->where('hva.occupation_flat', $flatId)
+                ->where('hoa.status', 'housingapprover_approved_1')
+                ->where('haod.uid', $uidValue)
                 ->exists();
 
-            $existingCs = DB::table('housing_cs_application')
-                ->where('occupation_flat', $flatId)
+            $cs = DB::table('housing_cs_application as hca')
+                ->join('housing_online_application as hoa', 'hoa.online_application_id', '=', 'hca.online_application_id')
+                ->join('housing_applicant_official_detail as haod', 'haod.applicant_official_detail_id', '=', 'hoa.applicant_official_detail_id')
+                ->where('hca.occupation_flat', $flatId)
+                ->where('hoa.status', 'housingapprover_approved_1')
+                ->where('haod.uid', $uidValue)
                 ->exists();
 
-            if ($existingVs || $existingCs) {
-                // Verify it's for the same applicant
-                $vsApplication = DB::table('housing_vs_application as hva')
-                    ->join('housing_online_application as hoa', 'hoa.online_application_id', '=', 'hva.online_application_id')
-                    ->join('housing_applicant_official_detail as haod', 'haod.applicant_official_detail_id', '=', 'hoa.applicant_official_detail_id')
-                    ->where('hva.occupation_flat', $flatId)
-                    ->where('hoa.status', 'housingapprover_approved_1')
-                    ->where('haod.uid', $data->uid ?? 0)
-                    ->exists();
-
-                $csApplication = DB::table('housing_cs_application as hca')
-                    ->join('housing_online_application as hoa', 'hoa.online_application_id', '=', 'hca.online_application_id')
-                    ->join('housing_applicant_official_detail as haod', 'haod.applicant_official_detail_id', '=', 'hoa.applicant_official_detail_id')
-                    ->where('hca.occupation_flat', $flatId)
-                    ->where('hoa.status', 'housingapprover_approved_1')
-                    ->where('haod.uid', $data->uid ?? 0)
-                    ->exists();
-
-                $alreadyApplied = $vsApplication || $csApplication;
-            }
+            $alreadyApplied = $vs || $cs;
         }
 
-        // Encrypt UID for frontend route
-        $uid = isset($data->uid) ? $data->uid : $data->housing_existing_occupant_draft_id;
-        $encryptedUid = encrypt($uid);
+        /** -----------------------------------------
+         *  🔹 Encrypt UID
+         * ------------------------------------------
+         */
+        
+        $encryptedUid = Crypt::encryptString((string)$uidValue);
 
         return response()->json([
             'status' => 'success',
@@ -202,8 +198,9 @@ class ExistingApplicantVsCsController extends Controller
             'already_applied' => $alreadyApplied,
             'encrypted_uid' => $encryptedUid,
         ]);
-    }
 
+
+    }
     /**
      * Store VS/CS application
      */
