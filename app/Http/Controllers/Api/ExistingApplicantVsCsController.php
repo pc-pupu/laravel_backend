@@ -274,28 +274,28 @@ class ExistingApplicantVsCsController extends Controller
                 if (!empty($data['hrms_id'])) {
                     $newUser = [
                         'name' => trim($data['hrms_id']),
-                        'pass' => Hash::make(trim($data['hrms_id'])),
+                        'password' => Hash::make(trim($data['hrms_id'])),
                         'mail' => !empty($data['email']) ? trim($data['email']) : trim($data['hrms_id']) . '@gmail.com',
                         'status' => 1,
-                        'created' => time(),
-                        'access' => time(),
-                        'login' => time(),
-                        'init' => !empty($data['email']) ? trim($data['email']) : trim($data['hrms_id']) . '@gmail.com',
+                        'created_at' => date('Y-m-d H:i:s', time()),
+                        // 'access' => time(),
+                        // 'login' => time(),
+                        // 'init' => !empty($data['email']) ? trim($data['email']) : trim($data['hrms_id']) . '@gmail.com',
                     ];
                 } else {
                     $newUser = [
                         'name' => $username,
-                        'pass' => Hash::make($username),
+                        'password' => Hash::make($username),
                         'mail' => !empty($data['email']) ? trim($data['email']) : $username . '@gmail.com',
                         'status' => 1,
-                        'created' => time(),
-                        'access' => time(),
-                        'login' => time(),
-                        'init' => !empty($data['email']) ? trim($data['email']) : $username . '@gmail.com',
+                        'created_at' => date('Y-m-d H:i:s', time()),
+                        // 'access' => time(),
+                        // 'login' => time(),
+                        // 'init' => !empty($data['email']) ? trim($data['email']) : $username . '@gmail.com',
                     ];
                 }
 
-                $uid = DB::table('users')->insertGetId($newUser);
+                $uid = DB::table('users')->insertGetId($newUser,'uid');
 
                 // Handle draft to regular conversion if HRMS ID is provided
                 if (!empty($data['hrms_id']) && is_numeric($housingHiddenUidOrDraftId)) {
@@ -331,7 +331,7 @@ class ExistingApplicantVsCsController extends Controller
                 'gender' => trim($data['gender']),
             ];
 
-            $lastHousingApplicantId = DB::table('housing_applicant')->insertGetId($applicantPersonalDetailArr);
+            $lastHousingApplicantId = DB::table('housing_applicant')->insertGetId($applicantPersonalDetailArr,'housing_applicant_id');
 
             // Assign user role
             DB::table('users_roles')->insert([
@@ -369,7 +369,7 @@ class ExistingApplicantVsCsController extends Controller
                     ->update(['is_active' => 0]);
             }
 
-            $applicantOfficialDetailId = DB::table('housing_applicant_official_detail')->insertGetId($appOffDetailArr);
+            $applicantOfficialDetailId = DB::table('housing_applicant_official_detail')->insertGetId($appOffDetailArr,'applicant_official_detail_id');
 
             // Create online application
             $onlineAppArr = [
@@ -381,7 +381,7 @@ class ExistingApplicantVsCsController extends Controller
                 'date_of_application' => $this->convertDate($data['application_date']),
             ];
 
-            $lastOnlineApplicationId = DB::table('housing_online_application')->insertGetId($onlineAppArr);
+            $lastOnlineApplicationId = DB::table('housing_online_application')->insertGetId($onlineAppArr,'online_application_id');
 
             // Get flat type ID from pay band
             $flatTypeId = DB::table('housing_pay_band_categories')
@@ -1027,7 +1027,7 @@ class ExistingApplicantVsCsController extends Controller
             'present_post_office' => $draftData->present_post_office ?? 'NA',
             'present_district' => $draftData->present_district ?? '17',
             'present_pincode' => $draftData->present_pincode ?? '700001',
-        ]);
+        ], 'housing_applicant_id');
 
         // Create official detail
         $checkedDdo = (!empty($draftData->ddo_id) && $draftData->ddo_id != '') ? $draftData->ddo_id : 1263;
@@ -1053,14 +1053,14 @@ class ExistingApplicantVsCsController extends Controller
             'office_district' => $draftData->office_district ?? '17',
             'office_phone_no' => $draftData->office_phone_no ?? '033-22222222',
             'is_active' => 0,
-        ]);
+        ],'applicant_official_detail_id');
 
         // Create online application
         $onlineApplicationId = DB::table('housing_online_application')->insertGetId([
             'applicant_official_detail_id' => $applicantOfficialDetailId,
             'status' => 'existing_occupant',
             'is_backlog_applicant' => 2,
-        ]);
+        ],'online_application_id');
 
         DB::table('housing_online_application')
             ->where('online_application_id', $onlineApplicationId)
@@ -1071,7 +1071,7 @@ class ExistingApplicantVsCsController extends Controller
             'online_application_id' => $onlineApplicationId,
             'flat_id' => $draftData->flat_id,
             'allotment_date' => null,
-        ]);
+        ],'flat_occupant_id');
 
         // Update flat status
         DB::table('housing_flat')

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Log;
 
 class ExistingApplicantHelperController extends Controller
 {
@@ -129,7 +130,7 @@ class ExistingApplicantHelperController extends Controller
     public function ddoDesignations(Request $request)
     {
         $districtCode = $request->input('district_code');
-
+        
         $options = ['' => '- Select -'];
 
         if ($districtCode) {
@@ -142,7 +143,7 @@ class ExistingApplicantHelperController extends Controller
                 $options[$ddo->ddo_id] = $ddo->ddo_designation;
             }
         }
-
+        Log::info('Fetching DDO designations', ['data' => $options]);
         return response()->json([
             'status' => 'success',
             'data' => $options,
