@@ -17,11 +17,16 @@ use App\Http\Controllers\Api\ExistingApplicantVsCsController;
 use App\Http\Controllers\Api\ExistingApplicantVsCsHelperController;
 use App\Http\Controllers\Api\EstateTreasuryMappingController;
 use App\Http\Controllers\Api\EstateTreasuryMappingHelperController;
+use App\Http\Controllers\Api\AuthApiServiceController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
 Route::get('/cms/{param}', [CmsContentPublicController::class, 'show']);
 Route::post('/login', [AuthController::class, 'login']);
+
+// Auth API Service (HRMS/DDO Login) - Public endpoints
+Route::post('/login-hrms', [AuthApiServiceController::class, 'applicantLogin']);
+Route::post('/login-ddo', [AuthApiServiceController::class, 'ddoLogin']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {

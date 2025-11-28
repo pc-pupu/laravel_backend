@@ -28,6 +28,9 @@
         },
         "files": [
             "app/Helpers/ErrorLogHelper.php"
+        ],
+        "classmap": [
+            "app/Helpers"
         ]
     },
     "autoload-dev": {
