@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'hrms' => [
+        'secret' => env('HRMS_SECRET', 'DDThkqkxlOYQzpZUbqnfEGir5mWHV5mY'),
+        'iv' => env('HRMS_IV', 'ykDWpfWyXXjTY0bg'),
+        'hmac_secret' => env('HRMS_HMAC_SECRET', '1Po/Rx7oUnNzy9QZ7NZJjA=='),
+        'hmac_secret_me' => env('HRMS_HMAC_SECRET_ME', '1Po/Pt8oRnNzy9QZ7NZJjA=='),
+        'api_secret_token' => env('HRMS_API_SECRET_TOKEN', 'WBHOUSING12#$'),
+        'uat_hrms_url' => env('HRMS_UAT_URL', 'https://uat.wbifms.gov.in'),
+    ],
+
 ];
