@@ -29,6 +29,7 @@ Route::post('/login-hrms', [AuthApiServiceController::class, 'applicantLogin']);
 Route::post('/login-ddo', [AuthApiServiceController::class, 'ddoLogin']);
 Route::post('/validate-sso-token', [AuthApiServiceController::class, 'validateSsoToken']);
 Route::post('/hrms-login-manual', [AuthApiServiceController::class, 'hrmsLoginManual']);
+Route::get('/hrms-log-data/{hrms_id}', [AuthApiServiceController::class, 'getHrmsLogData']);
 
 // User Tagging APIs
 Route::get('/user-tagging/check-submission/{uid}', [\App\Http\Controllers\Api\UserTaggingController::class, 'checkSubmission']);
