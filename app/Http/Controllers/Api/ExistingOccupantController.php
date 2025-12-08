@@ -351,15 +351,17 @@ class ExistingOccupantController extends Controller
             // 1. Create user
             $userId = DB::table('users')->insertGetId([
                 'name' => $username,
-                'pass' => bcrypt($username), // Password same as username
+                'password' => bcrypt($username), // Password same as username
+                'password_old' => bcrypt($username),
                 'mail' => strtolower(trim($request->input('email'))),
                 'status' => 0, // Inactive until approved
-                'created' => time(),
-                'access' => time(),
-            ]);
+                'new_pass_set' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], 'uid');
 
             // 2. Assign role (5 = existing occupant)
-            DB::table('users_roles')->insert([
+            DB::table('user_role')->insert([
                 'uid' => $userId,
                 'rid' => 5,
             ]);
@@ -518,7 +520,7 @@ class ExistingOccupantController extends Controller
             // Delete from multiple tables
             DB::table('housing_applicant')->where('uid', $occupant->uid)->delete();
             DB::table('housing_applicant_official_detail')->where('uid', $occupant->uid)->delete();
-            DB::table('users_roles')->where('uid', $occupant->uid)->delete();
+            DB::table('user_role')->where('uid', $occupant->uid)->delete();
             DB::table('users')->where('uid', $occupant->uid)->delete();
 
             // Update flat status back to available (1)

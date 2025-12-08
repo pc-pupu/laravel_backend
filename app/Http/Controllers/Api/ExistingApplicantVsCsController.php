@@ -334,7 +334,7 @@ class ExistingApplicantVsCsController extends Controller
             $lastHousingApplicantId = DB::table('housing_applicant')->insertGetId($applicantPersonalDetailArr,'housing_applicant_id');
 
             // Assign user role
-            DB::table('users_roles')->insert([
+            DB::table('user_role')->insert([
                 'uid' => $uid,
                 'rid' => 4, // Applicant role
             ]);

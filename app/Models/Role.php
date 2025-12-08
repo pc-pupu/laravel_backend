@@ -24,10 +24,10 @@ class Role extends Model
     // Relationships
     public function users()
     {
-        // Using users_roles pivot table
-        // rid in users_roles references id in roles
-        // uid in users_roles references uid in users
-        return $this->belongsToMany(User::class, 'users_roles', 'rid', 'uid');
+        // Using user_role pivot table
+        // rid in user_role references id in roles
+        // uid in user_role references uid in users
+        return $this->belongsToMany(User::class, 'user_role', 'rid', 'uid');
     }
 
     public function permissions()

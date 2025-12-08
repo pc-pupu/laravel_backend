@@ -19,13 +19,15 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'password',
-        'email',
+        'password_old',
+        'mail',
         'status',
         'new_pass_set'
     ];
 
     protected $hidden = [
         'password',
+        'password_old',
         'remember_token',
     ];
 
@@ -33,6 +35,18 @@ class User extends Authenticatable
         'status' => 'integer',
         'new_pass_set' => 'integer',
     ];
+
+    // Accessor: Allow reading 'email' which maps to 'mail' column
+    public function getEmailAttribute()
+    {
+        return $this->attributes['mail'] ?? null;
+    }
+
+    // Mutator: Allow setting 'email' which stores in 'mail' column
+    public function setEmailAttribute($value)
+    {
+        $this->attributes['mail'] = $value;
+    }
 
     public function getAuthIdentifierName()
     {
@@ -42,10 +56,10 @@ class User extends Authenticatable
     // Relationships
     public function roles()
     {
-        // Using users_roles pivot table
-        // uid in users_roles references uid in users
-        // rid in users_roles references id in roles
-        return $this->belongsToMany(Role::class, 'users_roles', 'uid', 'rid');
+        // Using user_role pivot table
+        // uid in user_role references uid in users
+        // rid in user_role references id in roles
+        return $this->belongsToMany(Role::class, 'user_role', 'uid', 'rid');
     }
 
     public function passwordHistories()
