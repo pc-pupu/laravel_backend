@@ -571,5 +571,54 @@ class AuthApiServiceController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get HRMS Applicant Login Log Data by HRMS ID
+     * GET /api/hrms-log-data/{hrms_id}
+     */
+    public function getHrmsLogData($hrmsId)
+    {
+        try {
+            $logData = DB::table('housing_hrms_applicant_login_log')
+                ->where('hrms_id', $hrmsId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (empty($logData)) {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => null,
+                    'status_code' => 200
+                ], 200);
+            }
+
+            // Parse the JSON decrypted data
+            $decryptedData = json_decode($logData->json_decrypted_data, true);
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'name' => $decryptedData['name'] ?? '',
+                    'mobile' => $decryptedData['mobile'] ?? '',
+                    'email' => $decryptedData['email'] ?? '',
+                    'designation' => $decryptedData['designation'] ?? '',
+                    'hrmsid' => $decryptedData['hrmsid'] ?? $hrmsId,
+                ],
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Get HRMS Log Data Error', [
+                'error' => $e->getMessage(),
+                'hrms_id' => $hrmsId
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Internal server error',
+                'status_code' => 500
+            ], 500);
+        }
+    }
 }
 
