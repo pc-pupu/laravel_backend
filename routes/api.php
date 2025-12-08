@@ -27,6 +27,22 @@ Route::post('/login', [AuthController::class, 'login']);
 // Auth API Service (HRMS/DDO Login) - Public endpoints
 Route::post('/login-hrms', [AuthApiServiceController::class, 'applicantLogin']);
 Route::post('/login-ddo', [AuthApiServiceController::class, 'ddoLogin']);
+Route::post('/validate-sso-token', [AuthApiServiceController::class, 'validateSsoToken']);
+Route::post('/hrms-login-manual', [AuthApiServiceController::class, 'hrmsLoginManual']);
+
+// User Tagging APIs
+Route::get('/user-tagging/check-submission/{uid}', [\App\Http\Controllers\Api\UserTaggingController::class, 'checkSubmission']);
+Route::post('/user-tagging/submit', [\App\Http\Controllers\Api\UserTaggingController::class, 'submit']);
+Route::get('/user-tagging/list', [\App\Http\Controllers\Api\UserTaggingController::class, 'getList']);
+Route::get('/user-tagging/details/{flat_id}', [\App\Http\Controllers\Api\UserTaggingController::class, 'getDetails']);
+Route::post('/user-tagging/update-status', [\App\Http\Controllers\Api\UserTaggingController::class, 'updateStatus']);
+
+// User Tagging Helper APIs
+Route::get('/user-tagging/helpers/rhe-list', [\App\Http\Controllers\Api\UserTaggingHelperController::class, 'getRheList']);
+Route::get('/user-tagging/helpers/flat-types/{rhe_id}', [\App\Http\Controllers\Api\UserTaggingHelperController::class, 'getFlatTypes']);
+Route::get('/user-tagging/helpers/blocks/{rhe_id}/{flat_type_id}', [\App\Http\Controllers\Api\UserTaggingHelperController::class, 'getBlocks']);
+Route::get('/user-tagging/helpers/floors/{rhe_id}/{flat_type_id}/{block_id}', [\App\Http\Controllers\Api\UserTaggingHelperController::class, 'getFloors']);
+Route::get('/user-tagging/helpers/flats/{rhe_id}/{flat_type_id}/{block_id}/{floor}', [\App\Http\Controllers\Api\UserTaggingHelperController::class, 'getFlats']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {

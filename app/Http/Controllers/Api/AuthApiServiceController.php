@@ -135,7 +135,7 @@ class AuthApiServiceController extends Controller
                     'name' => $loginName,
                     'password' => Hash::make($loginName),
                     'password_old' => Hash::make($loginName),
-                    'email' => $mail,
+                    'mail' => $mail,
                     'status' => 1,
                     'new_pass_set' => 1,
                     'created_at' => now(),
@@ -145,7 +145,7 @@ class AuthApiServiceController extends Controller
                 $uid = DB::table('users')->insertGetId($userData, 'uid');
                 
                 // Assign Applicant role (role ID 4 in Drupal)
-                DB::table('users_roles')->insert([
+                DB::table('user_role')->insert([
                     'uid' => $uid,
                     'rid' => 4, // Applicant role
                     'created_at' => now(),
@@ -154,7 +154,7 @@ class AuthApiServiceController extends Controller
             }
 
             // Generate SSO token
-            $hrmscode = \App\Helpers\UrlEncryptionHelper::encryptUrl($dataObj->hrmsid);
+            $hrmscode = \App\Helpers\UrlEncryptionHelper::encryptRaw($dataObj->hrmsid);
             $timestamp = time();
             $message = $hrmscode . "|" . $timestamp;
             $hmacSecret = config('services.hrms.hmac_secret_me', '');
@@ -327,7 +327,7 @@ class AuthApiServiceController extends Controller
                         'name' => trim($dataObj->ddo_code),
                         'password' => Hash::make(trim($dataObj->ddo_code)),
                         'password_old' => Hash::make(trim($dataObj->ddo_code)),
-                        'email' => $dataObj->email ?? trim($dataObj->ddo_code) . '@gmail.com',
+                        'mail' => $dataObj->email ?? trim($dataObj->ddo_code) . '@gmail.com',
                         'status' => 1,
                         'new_pass_set' => 1,
                         'created_at' => now(),
@@ -337,7 +337,7 @@ class AuthApiServiceController extends Controller
                     $uid = DB::table('users')->insertGetId($userData, 'uid');
                     
                     // Assign DDO role (role ID 11 in Drupal)
-                    DB::table('users_roles')->insert([
+                    DB::table('user_role')->insert([
                         'uid' => $uid,
                         'rid' => 11, // DDO role
                         'created_at' => now(),
@@ -347,7 +347,7 @@ class AuthApiServiceController extends Controller
             }
 
             // Generate SSO token
-            $ddocode = \App\Helpers\UrlEncryptionHelper::encryptUrl($dataObj->ddo_code);
+            $ddocode = \App\Helpers\UrlEncryptionHelper::encryptRaw($dataObj->ddo_code);
             $timestamp = time();
             $message = $ddocode . "|" . $timestamp;
             $hmacSecret = config('services.hrms.hmac_secret_me', '');
@@ -366,6 +366,200 @@ class AuthApiServiceController extends Controller
 
         } catch (\Exception $e) {
             Log::error('DDO Login Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Internal server error',
+                'status_code' => 500
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate HRMS SSO Token and Return User Data
+     * POST /api/validate-sso-token
+     */
+    public function validateSsoToken(Request $request)
+    {
+        // \Log::info('SSO Token Validation1', [
+        //         'token' => $request->input('token'),
+        //         'token_length' => strlen($request->input('token') ?? '')
+        //     ]);
+        try {
+            $token = $request->input('token');
+            $maxAge = $request->input('max_age', 120);
+
+            if (empty($token)) {
+                Log::error('SSO Token Validation: No token provided');
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No SSO token provided',
+                    'status_code' => 400
+                ], 400);
+            }
+
+            // Log::info('SSO Token Validation', [
+            //     'token' => $token,
+            //     'token_length' => strlen($token)
+            // ]);
+
+            $decoded = base64_decode($token);
+            
+            // Log::info('Token decoded', [
+            //     'decoded' => $decoded,
+            //     'pipe_count' => substr_count($decoded, '|')
+            // ]);
+
+            if (!$decoded || substr_count($decoded, '|') !== 2) {
+                Log::error('SSO Token Validation: Invalid format', [
+                    'decoded' => $decoded,
+                    'pipe_count' => substr_count($decoded, '|')
+                ]);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid token format',
+                    'status_code' => 400
+                ], 400);
+            }
+
+            list($code, $timestamp, $receivedHmac) = explode("|", $decoded);
+
+            // Compute expected HMAC
+            $hmacSecret = config('services.hrms.hmac_secret_me', '1Po/Pt8oRnNzy9QZ7NZJjA==');
+            $expectedHmac = hash_hmac("sha256", $code . "|" . $timestamp, $hmacSecret);
+
+            if (!hash_equals($expectedHmac, $receivedHmac)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid Token',
+                    'status_code' => 400
+                ], 400);
+            }
+
+            // Check timestamp validity
+            if (abs(time() - (int)$timestamp) > $maxAge) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Request Token Expired',
+                    'status_code' => 400
+                ], 400);
+            }
+
+            // Decrypt the code
+            $decryptedCode = \App\Helpers\UrlEncryptionHelper::decryptRaw($code);
+
+            // Load user by name
+            $account = DB::table('users')->where('name', $decryptedCode)->first();
+
+            if (!$account || !$account->uid) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid Token and User or User Not Found',
+                    'status_code' => 400
+                ], 400);
+            }
+
+            // Update last updated time
+            DB::table('users')
+                ->where('uid', $account->uid)
+                ->update(['updated_at' => now()]);
+
+            // Log the login
+            // Log::info('Session opened via SSO', ['name' => $account->name]);
+
+            return response()->json([
+                'status' => 'success',
+                'user' => [
+                    'uid' => $account->uid,
+                    'name' => $account->name,
+                    'email' => $account->mail ?? null,
+                ],
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('SSO Token Validation Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid Token',
+                'status_code' => 400
+            ], 400);
+        }
+    }
+
+    /**
+     * Manual HRMS Login (from form)
+     * POST /api/hrms-login-manual
+     */
+    public function hrmsLoginManual(Request $request)
+    {
+        try {
+            $hrmsId = $request->input('hrms_id');
+            
+            if (empty($hrmsId)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'HRMS ID is required',
+                    'status_code' => 400
+                ], 400);
+            }
+
+            $hrmsId = trim($hrmsId);
+
+            // Check if user exists, create if not
+            $account = DB::table('users')->where('name', $hrmsId)->first();
+            //    Log::info('Manual HRMS Login: Checking user', [
+            //        'hrms_id' => $hrmsId,
+            //        'account_exists' => $account ? true : false
+            //    ]);
+            if (empty($account)) {
+                $mail = $hrmsId . '@gmail.com';
+                
+                $userData = [
+                    'name' => $hrmsId,
+                    'password' => Hash::make($hrmsId),
+                    'password_old' => Hash::make($hrmsId),
+                    'mail' => $mail,
+                    'status' => 1,
+                    'new_pass_set' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                $uid = DB::table('users')->insertGetId($userData, 'uid');
+                
+                // Assign Applicant role (role ID 4)
+                DB::table('user_role')->insert([
+                    'uid' => $uid,
+                    'rid' => 4,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Generate SSO token
+            $hrmscode = \App\Helpers\UrlEncryptionHelper::encryptRaw($hrmsId);
+            $timestamp = time();
+            $message = $hrmscode . "|" . $timestamp;
+            $hmacSecret = config('services.hrms.hmac_secret_me', '1Po/Pt8oRnNzy9QZ7NZJjA==');
+            $hmac = hash_hmac("sha256", $message, $hmacSecret);
+            $token = base64_encode($message . "|" . $hmac);
+            
+            return response()->json([
+                'status' => 'success',
+                'token' => $token,
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Manual HRMS Login Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

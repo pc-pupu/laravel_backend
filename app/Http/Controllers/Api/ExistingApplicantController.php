@@ -314,7 +314,7 @@ class ExistingApplicantController extends Controller
         // Check email uniqueness
         if (!empty($data['email'])) {
             $emailExists = DB::table('users')
-                ->where('email', trim($data['email']))
+                ->where('mail', trim($data['email']))
                 ->exists();
             
             if ($emailExists) {
@@ -358,7 +358,7 @@ class ExistingApplicantController extends Controller
                 'name' => $loginName,
                 'password' => Hash::make($loginName),
                 'password_old' => Hash::make($loginName),
-                'email' => !empty($data['email']) ? trim($data['email']) : null,
+                'mail' => !empty($data['email']) ? trim($data['email']) : null,
                 'status' => 1,
                 'new_pass_set' => 1,
                 'created_at' => Carbon::now(),
@@ -392,7 +392,7 @@ class ExistingApplicantController extends Controller
             $housingApplicantId = DB::table('housing_applicant')->insertGetId($applicantData,'housing_applicant_id');
 
             // Assign user role (role ID 4 based on Drupal code)
-            DB::table('users_roles')->insert([
+            DB::table('user_role')->insert([
                 'uid' => $uid,
                 'rid' => 4,
             ]);
@@ -579,7 +579,7 @@ class ExistingApplicantController extends Controller
         // Check email uniqueness (excluding current user)
         if (!empty($data['email'])) {
             $emailExists = DB::table('users')
-                ->where('email', trim($data['email']))
+                ->where('mail', trim($data['email']))
                 ->where('uid', '!=', $data['app_uid'])
                 ->exists();
             
@@ -629,7 +629,7 @@ class ExistingApplicantController extends Controller
                 'name' => $loginName,
                 'password' => Hash::make($loginName),
                 'password_old' => Hash::make($loginName),
-                'email' => !empty($data['email']) ? trim($data['email']) : null,
+                'mail' => !empty($data['email']) ? trim($data['email']) : null,
                 'new_pass_set' => 1,
                 'updated_at' => Carbon::now(),
             ];

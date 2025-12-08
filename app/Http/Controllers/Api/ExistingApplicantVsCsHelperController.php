@@ -16,7 +16,7 @@ class ExistingApplicantVsCsHelperController extends Controller
         $user = auth()->user();
         
         // Check if user has role 13 (admin - can see all RHEs)
-        $userRoles = DB::table('users_roles')
+        $userRoles = DB::table('user_role')
             ->where('uid', $user->uid)
             ->pluck('rid')
             ->toArray();
