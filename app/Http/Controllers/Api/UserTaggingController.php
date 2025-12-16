@@ -310,6 +310,9 @@ class UserTaggingController extends Controller
             })
             ->where('hoa.status', 'housingapprover_approved_1')
             ->whereNotNull('haod.hrms_id')
+            ->where('haod.hrms_id', '!=', '0')
+            ->where('haod.hrms_id', '!=', '')
+            ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''")
             ->select('haod.uid', 'haod.hrms_id', 'haod.applicant_official_detail_id', 'hoa.application_no')
             ->first();
 
