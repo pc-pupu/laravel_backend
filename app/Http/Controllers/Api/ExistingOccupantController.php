@@ -27,11 +27,22 @@ class ExistingOccupantController extends Controller
             ->where('hoa.is_backlog_applicant', '=', 2);
 
         // Filter by HRMS ID presence
+        // Note: null, 0, and blank are all considered as "null data" for hrms_id
         if ($request->filled('has_hrms')) {
             if ($request->input('has_hrms') == '1') {
-                $query->whereNotNull('haod.hrms_id');
+                // Has HRMS ID: not null, not 0, not blank
+                $query->whereNotNull('haod.hrms_id')
+                    ->where('haod.hrms_id', '!=', '0')
+                    ->where('haod.hrms_id', '!=', '')
+                    ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''");
             } else {
-                $query->whereNull('haod.hrms_id');
+                // No HRMS ID: null, 0, or blank
+                $query->where(function($q) {
+                    $q->whereNull('haod.hrms_id')
+                        ->orWhere('haod.hrms_id', '0')
+                        ->orWhere('haod.hrms_id', '')
+                        ->orWhereRaw("TRIM(COALESCE(haod.hrms_id, '')) = ''");
+                });
             }
         }
 

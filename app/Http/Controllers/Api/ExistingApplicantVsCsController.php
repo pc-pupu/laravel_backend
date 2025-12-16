@@ -440,7 +440,10 @@ class ExistingApplicantVsCsController extends Controller
             ->where('hoa.application_no', 'LIKE', 'VS%')
             ->where('hoa.is_backlog_applicant', 1)
             ->where('haod.is_active', 1)
-            ->whereNotNull('haod.hrms_id');
+            ->whereNotNull('haod.hrms_id')
+            ->where('haod.hrms_id', '!=', '0')
+            ->where('haod.hrms_id', '!=', '')
+            ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''");
 
         if ($userDetails && !empty($userDetails->division_id)) {
             if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
@@ -506,7 +509,12 @@ class ExistingApplicantVsCsController extends Controller
             ->join('housing_applicant as ha', 'ha.uid', '=', 'haod.uid')
             ->where('hoa.application_no', 'LIKE', 'VS%')
             ->where('hoa.is_backlog_applicant', 1)
-            ->whereNull('haod.hrms_id');
+            ->where(function($q) {
+                $q->whereNull('haod.hrms_id')
+                    ->orWhere('haod.hrms_id', '0')
+                    ->orWhere('haod.hrms_id', '')
+                    ->orWhereRaw("TRIM(COALESCE(haod.hrms_id, '')) = ''");
+            });
 
         if ($userDetails && !empty($userDetails->division_id)) {
             if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
@@ -570,7 +578,10 @@ class ExistingApplicantVsCsController extends Controller
             ->where('hoa.application_no', 'LIKE', 'CS%')
             ->where('hoa.is_backlog_applicant', 1)
             ->where('haod.is_active', 1)
-            ->whereNotNull('haod.hrms_id');
+            ->whereNotNull('haod.hrms_id')
+            ->where('haod.hrms_id', '!=', '0')
+            ->where('haod.hrms_id', '!=', '')
+            ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''");
 
         if ($userDetails && !empty($userDetails->division_id)) {
             if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
@@ -636,7 +647,12 @@ class ExistingApplicantVsCsController extends Controller
             ->join('housing_applicant as ha', 'ha.uid', '=', 'haod.uid')
             ->where('hoa.application_no', 'LIKE', 'CS%')
             ->where('hoa.is_backlog_applicant', 1)
-            ->whereNull('haod.hrms_id');
+            ->where(function($q) {
+                $q->whereNull('haod.hrms_id')
+                    ->orWhere('haod.hrms_id', '0')
+                    ->orWhere('haod.hrms_id', '')
+                    ->orWhereRaw("TRIM(COALESCE(haod.hrms_id, '')) = ''");
+            });
 
         if ($userDetails && !empty($userDetails->division_id)) {
             if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {

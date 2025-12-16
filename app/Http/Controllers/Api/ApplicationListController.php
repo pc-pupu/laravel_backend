@@ -686,6 +686,11 @@ class ApplicationListController extends Controller
 
         if ($entity == 'new-apply') {
             $query->join('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id');
+            // Filter out null, 0, and blank computer_serial_no values (considered as null data)
+            $query->whereNotNull('hoa.computer_serial_no')
+                ->where('hoa.computer_serial_no', '!=', '0')
+                ->where('hoa.computer_serial_no', '!=', '')
+                ->whereRaw("TRIM(COALESCE(hoa.computer_serial_no, '')) != ''");
             $minSerial = $query->min(DB::raw('CAST(hoa.computer_serial_no AS UNSIGNED)'));
             
             if ($minSerial && $minSerial < (int)$computerSerialNo) {
