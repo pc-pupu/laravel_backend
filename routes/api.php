@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\ExistingApplicantVsCsHelperController;
 use App\Http\Controllers\Api\EstateTreasuryMappingController;
 use App\Http\Controllers\Api\EstateTreasuryMappingHelperController;
 use App\Http\Controllers\Api\AuthApiServiceController;
+use App\Http\Controllers\Api\CommonApplicationController;
+use App\Http\Controllers\Api\NewApplicationController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
@@ -160,6 +162,51 @@ Route::middleware('auth:sanctum')->group(function () {
         // Estate Treasury Mapping Helper Endpoints
         Route::get('estate-treasury-mapping-helpers/estates', [EstateTreasuryMappingHelperController::class, 'getEstates']);
         Route::get('estate-treasury-mapping-helpers/treasuries', [EstateTreasuryMappingHelperController::class, 'getTreasuries']);
+
+        // Common Application (shared form for new applications)
+        Route::post('common-application', [CommonApplicationController::class, 'store']);
+        Route::get('common-application/personal-info', [CommonApplicationController::class, 'getApplicantPersonalInfo']);
+        Route::get('common-application/official-info', [CommonApplicationController::class, 'getApplicantOfficialInfo']);
+
+        // New Application (extends common application with additional features)
+        Route::get('new-application/check-draft', [NewApplicationController::class, 'checkDraftStatus']);
+        Route::post('new-application', [NewApplicationController::class, 'store']);
+        Route::get('new-application/data', [NewApplicationController::class, 'getApplicationData']);
+        Route::get('new-application/housing-estate-preferences', [NewApplicationController::class, 'getHousingEstatePreferences']);
+        Route::get('new-application/flat-type-by-payband', [NewApplicationController::class, 'getFlatTypeByPayBand']);
+
+        // Application List
+        Route::get('application-list', [\App\Http\Controllers\Api\ApplicationListController::class, 'index']);
+        Route::get('application-list/admin', [\App\Http\Controllers\Api\ApplicationListController::class, 'adminList']);
+        Route::get('application-list/{id}', [\App\Http\Controllers\Api\ApplicationListController::class, 'show']);
+        Route::post('application-list/{id}/update-status', [\App\Http\Controllers\Api\ApplicationListController::class, 'updateStatus']);
+        
+        // View Application List Module APIs
+        Route::get('view-application-list/dashboard', [\App\Http\Controllers\Api\ApplicationListController::class, 'getDashboardCounts']);
+        Route::post('view-application-list/approve', [\App\Http\Controllers\Api\ApplicationListController::class, 'approveApplication']);
+        Route::get('view-application-list/{id}/documents', [\App\Http\Controllers\Api\ApplicationListController::class, 'getApplicantDocuments']);
+        Route::get('view-application-list/{id}/entity-type', [\App\Http\Controllers\Api\ApplicationListController::class, 'getApplicationEntityType']);
+
+        // License Management
+        Route::post('license/generate', [\App\Http\Controllers\Api\LicenseController::class, 'generate']);
+        Route::get('license/list', [\App\Http\Controllers\Api\LicenseController::class, 'list']);
+        Route::get('license/flat-possession-taken', [\App\Http\Controllers\Api\LicenseController::class, 'flatPossessionTaken']);
+        Route::get('license/flat-released', [\App\Http\Controllers\Api\LicenseController::class, 'flatReleased']);
+
+        // Online Application landing statuses
+        Route::get('online-application/statuses', [\App\Http\Controllers\Api\OnlineApplicationController::class, 'statuses']);
+
+        // Application Status
+        Route::get('application-status/{application_no}', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'getStatusHistory']);
+        
+        // Application Status Check
+        Route::post('application-status-check/search', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'search']);
+        Route::get('application-status-check/{id}', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'getApplicationDetail']);
+        Route::post('application-status-check/{id}/add-possession', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'addPossessionDate']);
+        Route::post('application-status-check/{id}/add-release-date', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'addReleaseDate']);
+        Route::post('application-status-check/{id}/request-license-extension', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'requestLicenseExtension']);
+        Route::post('application-status-check/{id}/request-offer-letter-extension', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'requestOfferLetterExtension']);
+        Route::get('application-status-check/{id}/extension-count', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'getExtensionCount']);
     
 });
 
