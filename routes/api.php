@@ -35,6 +35,7 @@ Route::get('/hrms-log-data/{hrms_id}', [AuthApiServiceController::class, 'getHrm
 
 // User Tagging APIs
 Route::get('/user-tagging/check-submission/{uid}', [\App\Http\Controllers\Api\UserTaggingController::class, 'checkSubmission']);
+Route::get('/user-tagging/check-hrms/{hrms_id}', [\App\Http\Controllers\Api\UserTaggingController::class, 'checkHrms']);
 Route::post('/user-tagging/submit', [\App\Http\Controllers\Api\UserTaggingController::class, 'submit']);
 Route::get('/user-tagging/list', [\App\Http\Controllers\Api\UserTaggingController::class, 'getList']);
 Route::get('/user-tagging/details/{flat_id}', [\App\Http\Controllers\Api\UserTaggingController::class, 'getDetails']);

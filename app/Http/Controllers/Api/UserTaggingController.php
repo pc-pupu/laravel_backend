@@ -13,15 +13,30 @@ class UserTaggingController extends Controller
     /**
      * Check if user has already submitted a tagging request
      * GET /api/user-tagging/check-submission/{uid}
+     * Note: This checks by hrms_id (matching Drupal logic)
      */
     public function checkSubmission($uid)
     {
         try {
-            // Check if user has any pending or new tagging request
-            $existingSubmission = DB::table('housing_user_tagging')
+            // Get hrms_id from uid first
+            $user = DB::table('users')
                 ->where('uid', $uid)
-                ->whereIn('flag', ['new', 'pending'])
-                ->where('status', 1)
+                ->first(['name']);
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'success',
+                    'has_submitted' => false,
+                    'submission_data' => null,
+                    'status_code' => 200
+                ], 200);
+            }
+
+            $hrmsId = $user->name;
+
+            // Check if user has any tagging request by hrms_id (matching Drupal logic)
+            $existingSubmission = DB::table('housing_user_tagging')
+                ->where('hrms_id', $hrmsId)
                 ->first();
 
             return response()->json([
@@ -310,9 +325,9 @@ class UserTaggingController extends Controller
             })
             ->where('hoa.status', 'housingapprover_approved_1')
             ->whereNotNull('haod.hrms_id')
-            ->where('haod.hrms_id', '!=', '0')
-            ->where('haod.hrms_id', '!=', '')
-            ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''")
+            ->where('haod.hrms_id', '!=', 0)
+            ->whereRaw("CAST(haod.hrms_id AS TEXT) != ''")
+            ->whereRaw("TRIM(CAST(haod.hrms_id AS TEXT)) != ''")
             ->select('haod.uid', 'haod.hrms_id', 'haod.applicant_official_detail_id', 'hoa.application_no')
             ->first();
 
@@ -406,6 +421,37 @@ class UserTaggingController extends Controller
             DB::table('housing_applicant_official_detail')
                 ->where('applicant_official_detail_id', $applicantOfficialDetailId)
                 ->update(['is_active' => 0]);
+        }
+    }
+
+    /**
+     * Check if hrms_id exists in user_tagging table
+     * GET /api/user-tagging/check-hrms/{hrms_id}
+     */
+    public function checkHrms($hrmsId)
+    {
+        try {
+            $exists = DB::table('housing_user_tagging')
+                ->where('hrms_id', $hrmsId)
+                ->exists();
+
+            return response()->json([
+                'status' => 'success',
+                'exists' => $exists,
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Check HRMS Error', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Internal server error',
+                'exists' => false,
+                'status_code' => 500
+            ], 500);
         }
     }
 }

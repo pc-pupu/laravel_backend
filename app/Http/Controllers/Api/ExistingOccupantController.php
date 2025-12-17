@@ -32,16 +32,16 @@ class ExistingOccupantController extends Controller
             if ($request->input('has_hrms') == '1') {
                 // Has HRMS ID: not null, not 0, not blank
                 $query->whereNotNull('haod.hrms_id')
-                    ->where('haod.hrms_id', '!=', '0')
-                    ->where('haod.hrms_id', '!=', '')
-                    ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''");
+                    ->where('haod.hrms_id', '!=', 0)
+                    ->whereRaw("CAST(haod.hrms_id AS TEXT) != ''")
+                    ->whereRaw("TRIM(CAST(haod.hrms_id AS TEXT)) != ''");
             } else {
                 // No HRMS ID: null, 0, or blank
                 $query->where(function($q) {
                     $q->whereNull('haod.hrms_id')
-                        ->orWhere('haod.hrms_id', '0')
-                        ->orWhere('haod.hrms_id', '')
-                        ->orWhereRaw("TRIM(COALESCE(haod.hrms_id, '')) = ''");
+                        ->orWhere('haod.hrms_id', 0)
+                        ->orWhereRaw("CAST(haod.hrms_id AS TEXT) = ''")
+                        ->orWhereRaw("TRIM(CAST(haod.hrms_id AS TEXT)) = ''");
                 });
             }
         }
