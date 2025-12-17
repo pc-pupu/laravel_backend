@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\NewApplicationController;
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
 Route::get('/cms/{param}', [CmsContentPublicController::class, 'show']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/generate-sso-token', [AuthController::class, 'generateSsoToken']);
 
 // Auth API Service (HRMS/DDO Login) - Public endpoints
 Route::post('/login-hrms', [AuthApiServiceController::class, 'applicantLogin']);
@@ -52,6 +53,13 @@ Route::get('/user-tagging/helpers/flats/{rhe_id}/{flat_type_id}/{block_id}/{floo
 Route::middleware('auth:sanctum')->group(function () {
     // Sidebar menus (for authenticated users)
     Route::get('sidebar-menus', [SidebarMenuController::class, 'index']);
+});
+
+// Dashboard API - Allow both authenticated and unauthenticated (with uid/username params)
+Route::get('/dashboard', [\App\Http\Controllers\Api\DashboardController::class, 'index']);
+
+// Protected routes (continued)
+Route::middleware('auth:sanctum')->group(function () {
     
     Route::prefix('admin')->group(function () {
 
