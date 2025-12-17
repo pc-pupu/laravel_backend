@@ -441,9 +441,9 @@ class ExistingApplicantVsCsController extends Controller
             ->where('hoa.is_backlog_applicant', 1)
             ->where('haod.is_active', 1)
             ->whereNotNull('haod.hrms_id')
-            ->where('haod.hrms_id', '!=', '0')
-            ->where('haod.hrms_id', '!=', '')
-            ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''");
+            ->where('haod.hrms_id', '!=', 0)
+            ->whereRaw("CAST(haod.hrms_id AS TEXT) != ''")
+            ->whereRaw("TRIM(CAST(haod.hrms_id AS TEXT)) != ''");
 
         if ($userDetails && !empty($userDetails->division_id)) {
             if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
@@ -511,9 +511,9 @@ class ExistingApplicantVsCsController extends Controller
             ->where('hoa.is_backlog_applicant', 1)
             ->where(function($q) {
                 $q->whereNull('haod.hrms_id')
-                    ->orWhere('haod.hrms_id', '0')
-                    ->orWhere('haod.hrms_id', '')
-                    ->orWhereRaw("TRIM(COALESCE(haod.hrms_id, '')) = ''");
+                    ->orWhere('haod.hrms_id', 0)
+                    ->orWhereRaw("CAST(haod.hrms_id AS TEXT) = ''")
+                    ->orWhereRaw("TRIM(CAST(haod.hrms_id AS TEXT)) = ''");
             });
 
         if ($userDetails && !empty($userDetails->division_id)) {
@@ -579,9 +579,9 @@ class ExistingApplicantVsCsController extends Controller
             ->where('hoa.is_backlog_applicant', 1)
             ->where('haod.is_active', 1)
             ->whereNotNull('haod.hrms_id')
-            ->where('haod.hrms_id', '!=', '0')
-            ->where('haod.hrms_id', '!=', '')
-            ->whereRaw("TRIM(COALESCE(haod.hrms_id, '')) != ''");
+            ->where('haod.hrms_id', '!=', 0)
+            ->whereRaw("CAST(haod.hrms_id AS TEXT) != ''")
+            ->whereRaw("TRIM(CAST(haod.hrms_id AS TEXT)) != ''");
 
         if ($userDetails && !empty($userDetails->division_id)) {
             if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
@@ -649,9 +649,9 @@ class ExistingApplicantVsCsController extends Controller
             ->where('hoa.is_backlog_applicant', 1)
             ->where(function($q) {
                 $q->whereNull('haod.hrms_id')
-                    ->orWhere('haod.hrms_id', '0')
-                    ->orWhere('haod.hrms_id', '')
-                    ->orWhereRaw("TRIM(COALESCE(haod.hrms_id, '')) = ''");
+                    ->orWhere('haod.hrms_id', 0)
+                    ->orWhereRaw("CAST(haod.hrms_id AS TEXT) = ''")
+                    ->orWhereRaw("TRIM(CAST(haod.hrms_id AS TEXT)) = ''");
             });
 
         if ($userDetails && !empty($userDetails->division_id)) {
