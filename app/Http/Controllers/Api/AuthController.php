@@ -82,4 +82,61 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out']);
     }
+
+    /**
+     * Generate Sanctum Token for SSO Users
+     * POST /api/generate-sso-token
+     * This is called after SSO token validation to generate a Sanctum token for API access
+     */
+    public function generateSsoToken(Request $request)
+    {
+        $request->validate([
+            'uid' => 'required|integer',
+            'name' => 'required|string',
+        ]);
+
+        try {
+            $user = User::where('uid', $request->uid)
+                ->where('name', $request->name)
+                ->first();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not found',
+                    'status_code' => 404
+                ], 404);
+            }
+
+            // Check if user is active
+            if ($user->status != 1) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User account is inactive',
+                    'status_code' => 403
+                ], 403);
+            }
+
+            // Create Sanctum token
+            $token = $user->createToken('api_token')->plainTextToken;
+
+            return response()->json([
+                'status' => 'success',
+                'token' => $token,
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Generate SSO Token Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Internal server error',
+                'status_code' => 500
+            ], 500);
+        }
+    }
 }
