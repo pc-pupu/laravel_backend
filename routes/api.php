@@ -214,6 +214,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('common-application/personal-info', [CommonApplicationController::class, 'getApplicantPersonalInfo']);
         Route::get('common-application/official-info', [CommonApplicationController::class, 'getApplicantOfficialInfo']);
 
+        
         // New Application (extends common application with additional features)
         Route::get('new-application/check-draft', [NewApplicationController::class, 'checkDraftStatus']);
         Route::post('new-application', [NewApplicationController::class, 'store']);
