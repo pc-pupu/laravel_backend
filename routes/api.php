@@ -58,6 +58,43 @@ Route::middleware('auth:sanctum')->group(function () {
 // Dashboard API - Allow both authenticated and unauthenticated (with uid/username params)
 Route::get('/dashboard', [\App\Http\Controllers\Api\DashboardController::class, 'index']);
 
+// Category Shifting (CS) APIs
+Route::get('/category-shifting/check-draft', [\App\Http\Controllers\Api\CategoryShiftingController::class, 'checkDraftStatus']);
+Route::get('/category-shifting/get-application-data', [\App\Http\Controllers\Api\CategoryShiftingController::class, 'getApplicationData']);
+Route::get('/category-shifting/get-current-occupation', [\App\Http\Controllers\Api\CategoryShiftingController::class, 'getCurrentOccupation']);
+Route::post('/category-shifting/store', [\App\Http\Controllers\Api\CategoryShiftingController::class, 'store']);
+
+// Vertical Shifting (VS) APIs
+Route::get('/vertical-shifting/check-draft', [\App\Http\Controllers\Api\VerticalShiftingController::class, 'checkDraftStatus']);
+Route::get('/vertical-shifting/get-application-data', [\App\Http\Controllers\Api\VerticalShiftingController::class, 'getApplicationData']);
+Route::get('/vertical-shifting/get-current-occupation', [\App\Http\Controllers\Api\VerticalShiftingController::class, 'getCurrentOccupation']);
+Route::post('/vertical-shifting/store', [\App\Http\Controllers\Api\VerticalShiftingController::class, 'store']);
+
+// Allotment List APIs
+Route::get('/allotment-list/process-dates', [\App\Http\Controllers\Api\AllotmentListController::class, 'getProcessDates']);
+Route::get('/allotment-list/process-numbers', [\App\Http\Controllers\Api\AllotmentListController::class, 'getProcessNumbers']);
+Route::get('/allotment-list/process-types', [\App\Http\Controllers\Api\AllotmentListController::class, 'getProcessTypes']);
+Route::get('/allotment-list/allottees', [\App\Http\Controllers\Api\AllotmentListController::class, 'getAllotteeList']);
+Route::get('/allotment-list/allottees-for-approve', [\App\Http\Controllers\Api\AllotmentListController::class, 'getAllotteeListForApprove']);
+Route::get('/allotment-list/allottees-on-hold', [\App\Http\Controllers\Api\AllotmentListController::class, 'getAllotteeListOnHold']);
+Route::get('/allotment-list/detail/{encrypted_app_id}', [\App\Http\Controllers\Api\AllotmentListController::class, 'getAllotmentDetail']);
+
+// Generate Allotment Letter APIs
+Route::get('/generate-allotment-letter/flat-types', [\App\Http\Controllers\Api\GenerateAllotmentLetterController::class, 'getFlatTypes']);
+Route::get('/generate-allotment-letter/waiting-list', [\App\Http\Controllers\Api\GenerateAllotmentLetterController::class, 'getWaitingList']);
+Route::post('/generate-allotment-letter/generate', [\App\Http\Controllers\Api\GenerateAllotmentLetterController::class, 'generateLetter']);
+
+// View Allotment Details APIs
+Route::get('/view-allotment-details', [\App\Http\Controllers\Api\ViewAllotmentDetailsController::class, 'getAllotmentDetails']);
+Route::get('/view-allotment-details/documents', [\App\Http\Controllers\Api\ViewAllotmentDetailsController::class, 'getUploadedDocuments']);
+Route::post('/view-allotment-details/update-status', [\App\Http\Controllers\Api\ViewAllotmentDetailsController::class, 'updateStatus']);
+
+// View Allotment Letter APIs
+Route::get('/view-allotment-letter/flat-types', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'getFlatTypes']);
+Route::get('/view-allotment-letter/list', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'getAllotmentLetterList']);
+Route::post('/view-allotment-letter/allot', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'allotApplicant']);
+Route::post('/view-allotment-letter/cancel', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'cancelAllotment']);
+
 // Protected routes (continued)
 Route::middleware('auth:sanctum')->group(function () {
     
@@ -201,6 +238,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('license/list', [\App\Http\Controllers\Api\LicenseController::class, 'list']);
         Route::get('license/flat-possession-taken', [\App\Http\Controllers\Api\LicenseController::class, 'flatPossessionTaken']);
         Route::get('license/flat-released', [\App\Http\Controllers\Api\LicenseController::class, 'flatReleased']);
+
+        // Allotment List Management (Protected)
+        Route::post('allotment-list/approve', [\App\Http\Controllers\Api\AllotmentListController::class, 'approveAllotments']);
+        Route::post('allotment-list/reject', [\App\Http\Controllers\Api\AllotmentListController::class, 'rejectAllotments']);
+        Route::post('allotment-list/hold', [\App\Http\Controllers\Api\AllotmentListController::class, 'holdAllotments']);
 
         // Online Application landing statuses
         Route::get('online-application/statuses', [\App\Http\Controllers\Api\OnlineApplicationController::class, 'statuses']);

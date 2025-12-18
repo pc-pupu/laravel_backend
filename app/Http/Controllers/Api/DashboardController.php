@@ -112,9 +112,14 @@ class DashboardController extends Controller
                 }
             }
         }
-
+        \Log::info('Fetching applicant dashboard data', [
+            'uid' => $uid,
+            'username' => $username,
+            'user_role' => $userRole,
+        ]);
         // Get user info
-        $output['user_info'] = $this->getHRMSUserData($username);
+        $output['user_info'] = $this->getHRMSUserDataBackend($username);
+        
         $output['user_info']['email'] = $output['user_info']['email'] ?? 
             DB::table('users')->where('uid', $uid)->value('mail') ?? 'N/A';
 
@@ -151,6 +156,7 @@ class DashboardController extends Controller
             ->select('hpf.short_code', 'hpf.online_application_id')
             ->first();
 
+            
         return $output;
     }
 
@@ -171,7 +177,7 @@ class DashboardController extends Controller
                 ->first();
 
             if (!empty($ddoMapping)) {
-                $hrmsData = $this->getHRMSUserData($ddoMapping->hrms_id);
+                $hrmsData = $this->getHRMSUserDataBackend($ddoMapping->hrms_id);
                 $output['user_info'] = [
                     'applicantName' => $username . ' (' . ($hrmsData['applicantName'] ?? '') . ')',
                     'applicantDesignation' => $roleName . ' (' . ($hrmsData['applicantDesignation'] ?? '') . ')',
@@ -464,60 +470,60 @@ class DashboardController extends Controller
      * For local: Returns dummy data
      * For live: Fetches from HRMS API and decrypts response
      */
-    private function getHRMSUserData($hrmsId)
+    public function getHRMSUserDataBackend($hrmsId)
     {
         // ========== LOCAL DEVELOPMENT - DUMMY DATA ==========
-        if (config('app.env') === 'local' || config('app.env') === 'development') {
-            return [
-                'hrmsId' => $hrmsId,
-                'applicantName' => 'PRADIP KUMAR HANSDA',
-                'dateOfBirth' => '15/04/1980',
-                'dateOfJoining' => '10/06/2005',
-                'dateOfRetirement' => '30/04/2040',
-                'mobileNo' => '7278587028',
-                'gender' => 'Male',
-                'applicantDesignation' => 'Upper Division Assistant',
-                'officeName' => 'PANCHAYATS & RURAL DEVELOPMENT DEPARTMENT',
-                'ddoId' => 'CAFPNA001',
-                'permanentStreet' => 'Flat No R-5/1,Bidhan Abasan',
-                'permanentCityTownVillage' => 'F B Block,Sector-III',
-                'permanentPostOffice' => 'Bidhannagar',
-                'permanentPincode' => '700106',
-                'permanentDistrictCode' => '5',
-                'permanentPresentSame' => 'Y',
-                'presentStreet' => 'Flat No R-5/1,Bidhan Abasan',
-                'presentCityTownVillage' => 'F B Block,Sector-III',
-                'presentPostOffice' => 'Bidhannagar',
-                'presentPincode' => '700106',
-                'presentDistrictCode' => '5',
-                'guardianName' => 'Sri Nabin Chandra Hansda',
-                'applicantHeadquarter' => 'L1-DEPARTMENT',
-                'gradePay' => '3600',
-                'payBandId' => '3',
-                'payScaleId' => '',
-                'applicantPostingPlace' => 'JOINT ADMINISTRATIVE BUILDING, 6TH - 10TH FLOOR, BLOCK HC-7 SECTOR 3 Salt Lake City BIDHANNAGAR IB MARKET SO Bidhannagar South 24 Parganas( North ) West Bengal',
-                'payInThePayBand' => '10600',
-                'officeStreetCharacter' => 'JOINT ADMINISTRATIVE BUILDING, 6TH - 10TH FLOOR, BLOCK HC-7 SECTOR 3 Salt Lake City BIDHANNAGAR IB MARKET SO Bidhannagar South 24 Parganas( North ) West Bengal',
-                'officeCityTownVillage' => 'Salt Lake City',
-                'officePostOffice' => 'BIDHANNAGAR IB MARKET SO',
-                'officePinCode' => '700106',
-                'officeDistrict' => '5',
-                'officePhoneNo' => '',
-                'email' => '',
-            ];
-        }
+        // if (config('app.env') === 'local' || config('app.env') === 'development') {
+        //     return [
+        //         'hrmsId' => $hrmsId,
+        //         'applicantName' => 'PRADIP KUMAR HANSDA',
+        //         'dateOfBirth' => '15/04/1980',
+        //         'dateOfJoining' => '10/06/2005',
+        //         'dateOfRetirement' => '30/04/2040',
+        //         'mobileNo' => '7278587028',
+        //         'gender' => 'Male',
+        //         'applicantDesignation' => 'Upper Division Assistant',
+        //         'officeName' => 'PANCHAYATS & RURAL DEVELOPMENT DEPARTMENT',
+        //         'ddoId' => 'CAFPNA001',
+        //         'permanentStreet' => 'Flat No R-5/1,Bidhan Abasan',
+        //         'permanentCityTownVillage' => 'F B Block,Sector-III',
+        //         'permanentPostOffice' => 'Bidhannagar',
+        //         'permanentPincode' => '700106',
+        //         'permanentDistrictCode' => '5',
+        //         'permanentPresentSame' => 'Y',
+        //         'presentStreet' => 'Flat No R-5/1,Bidhan Abasan',
+        //         'presentCityTownVillage' => 'F B Block,Sector-III',
+        //         'presentPostOffice' => 'Bidhannagar',
+        //         'presentPincode' => '700106',
+        //         'presentDistrictCode' => '5',
+        //         'guardianName' => 'Sri Nabin Chandra Hansda',
+        //         'applicantHeadquarter' => 'L1-DEPARTMENT',
+        //         'gradePay' => '3600',
+        //         'payBandId' => '3',
+        //         'payScaleId' => '',
+        //         'applicantPostingPlace' => 'JOINT ADMINISTRATIVE BUILDING, 6TH - 10TH FLOOR, BLOCK HC-7 SECTOR 3 Salt Lake City BIDHANNAGAR IB MARKET SO Bidhannagar South 24 Parganas( North ) West Bengal',
+        //         'payInThePayBand' => '10600',
+        //         'officeStreetCharacter' => 'JOINT ADMINISTRATIVE BUILDING, 6TH - 10TH FLOOR, BLOCK HC-7 SECTOR 3 Salt Lake City BIDHANNAGAR IB MARKET SO Bidhannagar South 24 Parganas( North ) West Bengal',
+        //         'officeCityTownVillage' => 'Salt Lake City',
+        //         'officePostOffice' => 'BIDHANNAGAR IB MARKET SO',
+        //         'officePinCode' => '700106',
+        //         'officeDistrict' => '5',
+        //         'officePhoneNo' => '',
+        //         'email' => '',
+        //     ];
+        // }
         // ========== END LOCAL DEVELOPMENT ==========
 
         // ========== LIVE PRODUCTION - HRMS API CALL ==========
         try {
             $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
-            
+            // $hrmsApiUrl = config('services.hrms.api_url', 'https://172.17.2.45/hrms-External/housing/fetchEmployeeDetails'); // Internal IP (for Live)
             $requestData = [
                 'req' => [
                     'hrmsId' => $hrmsId
                 ]
             ];
-
+            
             $response = Http::timeout(30)
                 ->withOptions([
                     'verify' => false,
