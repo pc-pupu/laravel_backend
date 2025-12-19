@@ -21,6 +21,11 @@ class DashboardController extends Controller
             $uid = $request->input('uid');
             $username = $request->input('username');
             $userType = $request->input('user_type'); // Cookie value
+            \Log::info('Dashboard Request', [
+                'uid' => $uid,
+                'username' => $username,
+                'user_type' => $userType
+            ]);
 
             if (!$uid || !$username) {
                 return response()->json([
@@ -82,7 +87,12 @@ class DashboardController extends Controller
     private function getApplicantDashboardData($uid, $username, $userRole, $userType = null)
     {
         $output = [];
-
+        \Log::info('Fetching applicant dashboard data', [
+            'uid' => $uid,
+            'username' => $username,
+            'user_role' => $userRole,
+            'user_type' => $userType
+        ]);
         // Role 4 specific logic
         if ($userRole == 4 && $userType !== 'new') {
             // Check HRMS tagging
@@ -111,12 +121,14 @@ class DashboardController extends Controller
                     ];
                 }
             }
+        }elseif ($userRole == 5 ||($userRole == 4 && $userType == 'new')) {
+            // For Role 5 or Role 4 with 'new' user_type, redirect to user-tagging
+            return [
+                'redirect' => '/dashboard',
+                'redirect_message' => null
+            ];
         }
-        \Log::info('Fetching applicant dashboard data', [
-            'uid' => $uid,
-            'username' => $username,
-            'user_role' => $userRole,
-        ]);
+       
         // Get user info
         $output['user_info'] = $this->getHRMSUserDataBackend($username);
         

@@ -252,9 +252,10 @@ class NewApplicationController extends Controller
         $documentRequiredReasons = [
             'Transfer',
             'Legal Heir',
-            'Physically Handicaped or Serious Illness',
+            'Physically Handicaped Or Serious Illness',
             'Recommended',
             'Single Earning Lady',
+            'Judicial Officer On Transfer',
         ];
 
         if (in_array($reason, $documentRequiredReasons)) {
