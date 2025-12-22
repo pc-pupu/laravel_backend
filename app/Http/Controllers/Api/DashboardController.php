@@ -123,7 +123,7 @@ class DashboardController extends Controller
             }
         }elseif ($userRole == 5 ||($userRole == 4 && $userType == 'new')) {
             // For Role 5 or Role 4 with 'new' user_type, redirect to user-tagging
-            return [
+            $output = [
                 'redirect' => '/dashboard',
                 'redirect_message' => null
             ];
