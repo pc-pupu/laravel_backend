@@ -351,7 +351,7 @@ class ExistingApplicantController extends Controller
                 ], 422);
             }
         }
-\Log::info('beginTransaction');
+        // \Log::info('beginTransaction');
         DB::beginTransaction();
         try {
             
@@ -361,7 +361,7 @@ class ExistingApplicantController extends Controller
                 $physicalApplicationNo,
                 $computerSerialNo
             );
-\Log::info('User Data Output', ['userdata' => $username]);
+            // \Log::info('User Data Output', ['userdata' => $username]);
             $loginName = !empty($data['hrms_id']) ? trim($data['hrms_id']) : $username;
 
             // Create user
