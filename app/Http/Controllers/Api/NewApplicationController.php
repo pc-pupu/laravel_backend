@@ -146,7 +146,7 @@ class NewApplicationController extends Controller
     public function store(Request $request)
     {
         $validator = $this->validateForm($request);
-
+        Log::info('New Application Store Request', ['data' => $request->all()]);
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
@@ -159,7 +159,7 @@ class NewApplicationController extends Controller
             DB::beginTransaction();
 
             $uid = $request->input('uid');
-            $action = $request->input('action', 'draft'); // 'draft' or 'applied'
+            $action = $request->input('action', 'applied'); // 'draft' or 'applied'
             $onlineApplicationId = $request->input('online_application_id', 0);
 
             // Step 1: Save common application data
@@ -169,19 +169,34 @@ class NewApplicationController extends Controller
                 $housingApplicantId = $this->saveApplicantPersonalDetails($uid, $request->all());
                 $applicantOfficialDetailId = $this->saveApplicantOfficialDetails($uid, $request->all(), $housingApplicantId, 'NA');
                 $onlineApplicationId = $this->saveOnlineApplication($applicantOfficialDetailId, $request->all(), 'NA', $action);
-            } else {
-                // Update existing application
-                $this->updateUserEmail($uid, $request->input('email'));
-                $this->updateApplicantPersonalDetails($uid, $request->all());
-                $this->updateApplicantOfficialDetails($uid, $request->all(), $onlineApplicationId);
-                $this->updateOnlineApplication($onlineApplicationId, $request->all(), $action);
-            }
+            } 
+            // else {
+            //     // Update existing application
+            //     $this->updateUserEmail($uid, $request->input('email'));
+            //     $this->updateApplicantPersonalDetails($uid, $request->all());
+            //     $this->updateApplicantOfficialDetails($uid, $request->all(), $onlineApplicationId);
+            //     $this->updateOnlineApplication($onlineApplicationId, $request->all(), $action);
+            // }
 
             // Step 2: Save new allotment application data
             $this->saveNewAllotmentApplication($onlineApplicationId, $request->all());
 
             // Step 3: Save estate preferences
             $this->saveEstatePreferences($onlineApplicationId, $request->all());
+            $getStatusData = DB::table('housing_allotment_status_master')
+                ->where('short_code', 'applied')
+                ->first();
+
+            $processFlowdataInsert = DB::table('housing_application_process_flow')->insert([
+                'online_application_id' => $onlineApplicationId,
+                'uid' => $uid,
+                'short_code' => 'applied',
+                'remarks' => null,
+                'status_id' => $getStatusData->status_id,
+                'status_weight'=> $getStatusData->weight,
+                'created_at' => Carbon::now(),
+            ]);
+
 
             // Step 4: Handle document upload
             $documentPath = null;
