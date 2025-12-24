@@ -29,6 +29,7 @@ class ApplicationListController extends Controller
         try {
             $applications = $this->fetchApplicationList($uid);
 
+            \Log::info('Fetched Application List', ['uid' => $uid, 'applications' => $applications]);
             return response()->json([
                 'status' => 'success',
                 'data' => $applications,
@@ -118,7 +119,8 @@ class ApplicationListController extends Controller
             } else {
                 $application = $this->fetchApplicationDetail($id, $uid);
             }
-
+            
+            // \Log::info('Fetched Application Detail', ['application_id' => $id, 'application' => $application]);
             if (!$application) {
                 return response()->json([
                     'status' => 'error',
@@ -128,10 +130,18 @@ class ApplicationListController extends Controller
 
             // Get additional data
             $application['estate_preferences'] = $this->fetchEstatePreferences($id);
-            $application['status_description'] = $this->fetchStatusDescription($application['status']);
+            $application['status_description'] = $this->fetchStatusDescription($application['application_status']);
             $application['allotment_flat_details'] = $this->fetchAllotmentFlatDetails($id);
             $application['applicant_personal_info'] = $this->fetchApplicantPersonalInfo($id);
-            $application['documents'] = $this->fetchApplicantDocumentsData($id);
+           
+            $documents = DB::table('housing_new_allotment_application as hna')
+                ->where('hna.online_application_id', $id)
+                ->select(
+                    'hna.extra_doc_path'
+                )
+                ->first();
+
+                 $application['documents'] = $documents;
 
             return response()->json([
                 'status' => 'success',
@@ -293,6 +303,7 @@ class ApplicationListController extends Controller
             ->orderBy('hoa.online_application_id', 'ASC')
             ->get();
 
+            \Log::info('Fetched Application List Query', ['query' => $query]);
         return $query->map(function ($app) {
             return [
                 'online_application_id' => $app->online_application_id,
@@ -443,43 +454,33 @@ class ApplicationListController extends Controller
             ->leftJoin('housing_vs_application as hva', 'hva.online_application_id', '=', 'hoa.online_application_id')
             ->leftJoin('housing_cs_application as hca', 'hca.online_application_id', '=', 'hoa.online_application_id')
             ->leftJoin('housing_license_application as hla', 'hla.online_application_id', '=', 'hoa.online_application_id')
-            ->leftJoin('file_managed as fm_app_form', 'fm_app_form.fid', '=', 'hoa.uploaded_app_form')
-            ->leftJoin('file_managed as fm_doc', 'fm_doc.fid', '=', 'hna.document')
-            ->leftJoin('file_managed as fm_extra_doc', 'fm_extra_doc.fid', '=', 'hna.extra_doc')
-            ->leftJoin('file_managed as fm_scaned_sign', 'fm_scaned_sign.fid', '=', 'hna.scaned_sign')
-            ->leftJoin('file_managed as fm_vs', 'fm_vs.fid', '=', 'hva.file_licence')
-            ->leftJoin('file_managed as fm_cs', 'fm_cs.fid', '=', 'hca.file_licence')
-            ->leftJoin('file_managed as fm_licence', 'fm_licence.fid', '=', 'hla.document')
             ->where('hoa.online_application_id', $onlineApplicationId);
-        
+
         if ($uid) {
             $query->where('haod.uid', $uid);
         }
-        
-        $query->select(
-                'hoa.*',
-                'haod.*',
-                'hd.*',
-                'hds.district_name',
-                'hft.flat_type',
-                'hft.flat_type_id',
-                'hpb.scale_from',
-                'hpb.scale_to',
-                'hna.allotment_category as na_allotment_category',
-                'hva.allotment_category as vs_allotment_category',
-                'hca.allotment_category as cs_allotment_category',
-                'fm_app_form.uri as uri_app_form',
-                'fm_doc.uri as uri_doc',
-                'fm_extra_doc.uri as uri_extra_doc',
-                'fm_scaned_sign.uri as uri_scaned_sign',
-                'fm_vs.uri as uri_vs',
-                'fm_cs.uri as uri_cs',
-                'fm_licence.uri as uri_licence'
-            )
-            ->first();
 
-        return $query ? (array) $query : null;
+        $result = $query->select(
+            'hoa.status as application_status',
+            'hoa.*',
+            'haod.*',
+            'hd.*',
+            'hds.district_name',
+            'hft.flat_type',
+            'hft.flat_type_id',
+            'hpb.scale_from',
+            'hpb.scale_to',
+            'hna.allotment_category as na_allotment_category',
+            'hva.allotment_category as vs_allotment_category',
+            'hca.allotment_category as cs_allotment_category',
+            'hna.extra_doc_path'
+        )->first();
+
+        return $result ? (array) $result : null;
     }
+
+
+ 
 
     /**
      * Fetch application detail for verified/rejected list
@@ -1046,7 +1047,12 @@ class ApplicationListController extends Controller
     public function getApplicantDocuments(Request $request, $id)
     {
         try {
-            $documents = $this->fetchApplicantDocumentsData($id);
+            $documents = DB::table('housing_new_allotment_application as hna')
+                ->where('hna.online_application_id', $id)
+                ->select(
+                    'hna.extra_doc_path'
+                )
+                ->first();
 
             if (!$documents) {
                 return response()->json([
@@ -1095,38 +1101,38 @@ class ApplicationListController extends Controller
     /**
      * Fetch applicant documents data
      */
-    private function fetchApplicantDocumentsData($onlineApplicationId)
-    {
-        $documents = DB::table('housing_online_application_upload_doc')
-            ->where('online_application_id', $onlineApplicationId)
-            ->first();
+    // private function fetchApplicantDocumentsData($onlineApplicationId)
+    // {
+    //     $documents = DB::table('housing_online_application_upload_doc')
+    //         ->where('online_application_id', $onlineApplicationId)
+    //         ->first();
 
-        if (!$documents) {
-            return null;
-        }
+    //     if (!$documents) {
+    //         return null;
+    //     }
 
-        $docData = (array) $documents;
+    //     $docData = (array) $documents;
         
-        // Get applicant UID for file paths
-        $uid = DB::table('housing_applicant_official_detail as haod')
-            ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
-            ->where('hoa.online_application_id', $onlineApplicationId)
-            ->value('haod.uid');
+    //     // Get applicant UID for file paths
+    //     $uid = DB::table('housing_applicant_official_detail as haod')
+    //         ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
+    //         ->where('hoa.online_application_id', $onlineApplicationId)
+    //         ->value('haod.uid');
 
-        // Build file URLs
-        $baseUrl = url('/');
-        if ($docData['license_application_signed_form']) {
-            $docData['license_application_signed_form_url'] = $baseUrl . '/storage/documents/' . $uid . '/' . $docData['license_application_signed_form'];
-        }
-        if ($docData['declaration_signed_form']) {
-            $docData['declaration_signed_form_url'] = $baseUrl . '/storage/documents/' . $uid . '/' . $docData['declaration_signed_form'];
-        }
-        if ($docData['current_pay_slip']) {
-            $docData['current_pay_slip_url'] = $baseUrl . '/storage/documents/' . $uid . '/' . $docData['current_pay_slip'];
-        }
+    //     // Build file URLs
+    //     $baseUrl = url('/');
+    //     if ($docData['license_application_signed_form']) {
+    //         $docData['license_application_signed_form_url'] = $baseUrl . '/storage/documents/' . $uid . '/' . $docData['license_application_signed_form'];
+    //     }
+    //     if ($docData['declaration_signed_form']) {
+    //         $docData['declaration_signed_form_url'] = $baseUrl . '/storage/documents/' . $uid . '/' . $docData['declaration_signed_form'];
+    //     }
+    //     if ($docData['current_pay_slip']) {
+    //         $docData['current_pay_slip_url'] = $baseUrl . '/storage/documents/' . $uid . '/' . $docData['current_pay_slip'];
+    //     }
 
-        return $docData;
-    }
+    //     return $docData;
+    // }
 
     /**
      * Get application entity type (check_application_entity equivalent)
