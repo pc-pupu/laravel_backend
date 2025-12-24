@@ -187,7 +187,7 @@ class NewApplicationController extends Controller
                 ->where('short_code', 'applied')
                 ->first();
 
-            $processFlowdataInsert = DB::table('housing_application_process_flow')->insert([
+            $processFlowdataInsert = DB::table('housing_process_flow')->insert([
                 'online_application_id' => $onlineApplicationId,
                 'uid' => $uid,
                 'short_code' => 'applied',
@@ -206,7 +206,7 @@ class NewApplicationController extends Controller
                 if ($documentPath) {
                     DB::table('housing_new_allotment_application')
                         ->where('online_application_id', $onlineApplicationId)
-                        ->update(['extra_doc' => $documentPath]);
+                        ->update(['extra_doc_path' => $documentPath]);
                 }
             }
 
@@ -298,7 +298,7 @@ class NewApplicationController extends Controller
             'online_application_id' => $onlineApplicationId,
             'allotment_category' => trim($data['reason']),
             'flat_type_id' => $flatTypeId,
-            'extra_doc' => null, // Will be handled separately if file uploaded
+            'extra_doc_path' => null, // Will be handled separately if file uploaded
         ];
 
         // Check if record exists
@@ -390,7 +390,7 @@ class NewApplicationController extends Controller
         }
 
         $filename = 'extra_doc_' . $uid . '_' . time() . '.pdf';
-        $path = $file->storeAs('documents/extra_doc', $filename, 'public');
+        $path = $file->storeAs('documents/NA/extra_doc', $filename, 'public');
         
         return $path;
     }
@@ -417,7 +417,7 @@ class NewApplicationController extends Controller
                 ->select(
                     'hnaa.allotment_category',
                     'hnaa.flat_type_id',
-                    'hnaa.extra_doc'
+                    'hnaa.extra_doc_path'
                 )
                 ->first();
 
