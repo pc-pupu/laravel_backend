@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
@@ -57,11 +58,16 @@ class AuthController extends Controller
         // ✅ Create token using the user model directly
         $token = $user->createToken('api_token')->plainTextToken;
 
+        $user_role = DB::table('user_role')
+            ->where('uid', $user->uid)
+            ->select('rid')->first();
+            \Log::info('User Role', ['role' => $user_role]);
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',
             'user' => [
                 'uid' => $user->uid,
+                'role' => $user_role->rid,
                 'name' => $user->name,
                 'email' => $user->mail,
             ],
