@@ -60,6 +60,20 @@ class ApplicationListController extends Controller
         $userRole = $request->input('user_role');
         $ddoCode = $request->input('ddo_code'); // For DDO role filtering
 
+        if(empty($userRole)){
+            $uid = $request->input('uid');
+            $userRole = DB::table('user_role')
+                ->where('uid', $uid)
+                ->orderBy('rid', 'ASC')
+                ->value('rid');
+        }
+        \Log::info('Admin Application List Request', [
+            'status' => $status,
+            'entity' => $entity,
+            'page_status' => $pageStatus,
+            'user_role' => $userRole,
+            'ddo_code' => $ddoCode,
+        ]);
         if (!$status || !$entity) {
             return response()->json([
                 'status' => 'error',
@@ -67,6 +81,7 @@ class ApplicationListController extends Controller
             ], 422);
         }
 
+        
         try {
             if ($pageStatus == 'action-list') {
                 $applications = $this->fetchApplicationListForAction($entity, $status, $userRole, $ddoCode);
@@ -330,26 +345,32 @@ class ApplicationListController extends Controller
             ->where('haod.is_active', 1)
             ->where('hoa.status', $status);
 
-        // Filter by DDO code for DDO role
+        // 🔹 Filter by DDO code for DDO role
         if ($userRole == 11 && $ddoCode) {
             $query->where('hd.ddo_code', $ddoCode);
         }
 
-        // Join entity-specific tables
-        if ($entity == 'new-apply') {
+        // 🔹 Entity-specific joins
+        if ($entity === 'new-apply') {
+
             $query->join('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hna.flat_type_id', '=', 'hft.flat_type_id')
                 ->addSelect('hna.allotment_category', 'hft.flat_type');
-        } elseif ($entity == 'vs') {
+
+        } elseif ($entity === 'vs') {
+
             $query->join('housing_vs_application as hva', 'hva.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hva.flat_type_id', '=', 'hft.flat_type_id')
                 ->addSelect('hva.allotment_category', 'hft.flat_type');
-        } elseif ($entity == 'cs') {
+
+        } elseif ($entity === 'cs') {
+
             $query->join('housing_cs_application as hca', 'hca.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hca.flat_type_id', '=', 'hft.flat_type_id')
                 ->addSelect('hca.allotment_category', 'hft.flat_type');
         }
 
+        // 🔹 Common selects
         $query->addSelect(
             'ha.applicant_name',
             'hoa.online_application_id',
@@ -358,10 +379,14 @@ class ApplicationListController extends Controller
             'hoa.computer_serial_no'
         );
 
-        // Order by computer serial number for new-apply, by ID for others
-        if ($entity == 'new-apply') {
-            $query->orderByRaw('CAST(hoa.computer_serial_no AS UNSIGNED) ASC')
-                ->orderBy('hoa.computer_serial_no', 'ASC');
+        // 🔹 PostgreSQL-safe ordering
+        if ($entity === 'new-apply') {
+
+            $query->orderByRaw("
+                NULLIF(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), '')::INTEGER ASC,
+                regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC
+            ");
+
         } else {
             $query->orderBy('hoa.online_application_id', 'ASC');
         }
@@ -370,6 +395,7 @@ class ApplicationListController extends Controller
             return (array) $app;
         })->toArray();
     }
+
 
     /**
      * Fetch application list for verified/rejected
@@ -456,9 +482,9 @@ class ApplicationListController extends Controller
             ->leftJoin('housing_license_application as hla', 'hla.online_application_id', '=', 'hoa.online_application_id')
             ->where('hoa.online_application_id', $onlineApplicationId);
 
-        if ($uid) {
-            $query->where('haod.uid', $uid);
-        }
+        // if ($uid) {
+        //     $query->where('haod.uid', $uid);
+        // }
 
         $result = $query->select(
             'hoa.status as application_status',
@@ -475,7 +501,7 @@ class ApplicationListController extends Controller
             'hca.allotment_category as cs_allotment_category',
             'hna.extra_doc_path'
         )->first();
-
+           
         return $result ? (array) $result : null;
     }
 
@@ -650,6 +676,12 @@ class ApplicationListController extends Controller
      */
     private function getApplicationCount($entity, $status, $userRole, $ddoCode)
     {
+        \Log::info('Getting application count', [
+            'entity' => $entity,
+            'status' => $status,
+            'userRole' => $userRole,
+            'ddoCode' => $ddoCode,
+        ]);
         if (!$status) {
             return 0;
         }
@@ -793,7 +825,15 @@ class ApplicationListController extends Controller
         $entity = $request->input('entity'); // new-apply, vs, cs
         $userRole = $request->input('user_role');
         $ddoCode = $request->input('ddo_code');
-
+        $uid = $request->input('uid');
+        $userName = $request->input('userName');
+        if(empty($userRole)){
+            $userRole = DB::table('user_role')
+                ->where('uid', $uid)
+                ->orderBy('rid', 'ASC')
+                ->value('rid');
+        }
+        
         if (!$status || !$entity) {
             return response()->json([
                 'status' => 'error',

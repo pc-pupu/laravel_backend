@@ -148,6 +148,7 @@ class DashboardController extends Controller
 
         // Get all application data
         $output['all-application-data'] = $this->getAllApplicationDetails($uid);
+        
 
         // Get current status (offer/allotment)
         $output['fetch_current_status'] = DB::table('housing_process_flow as hpf')
@@ -208,12 +209,12 @@ class DashboardController extends Controller
             }
 
             // Fetch application counts for DDO
-            $output['new-apply'] = $this->applicationListFetch('new-apply', 'applied');
-            $output['vs'] = $this->applicationListFetch('vs', 'applied');
-            $output['cs'] = $this->applicationListFetch('cs', 'applied');
-            $output['allotted-apply'] = $this->applicationListFetch('new-apply', 'applicant_acceptance');
-            $output['allotted-vs'] = $this->applicationListFetch('vs', 'applicant_acceptance');
-            $output['allotted-cs'] = $this->applicationListFetch('cs', 'applicant_acceptance');
+            $output['new-apply'] = $this->applicationListFetch('new-apply', 'applied',$username,$userRole);
+            $output['vs'] = $this->applicationListFetch('vs', 'applied',$username,$userRole);
+            $output['cs'] = $this->applicationListFetch('cs', 'applied',$username,$userRole);
+            $output['allotted-apply'] = $this->applicationListFetch('new-apply', 'applicant_acceptance',$username,$userRole);
+            $output['allotted-vs'] = $this->applicationListFetch('vs', 'applicant_acceptance',$username,$userRole);
+            $output['allotted-cs'] = $this->applicationListFetch('cs', 'applicant_acceptance',$username,$userRole);
 
         } elseif ($userRole == 10) {
             // Housing Supervisor
@@ -330,7 +331,7 @@ class DashboardController extends Controller
      * Application List Fetch (matching Drupal application_list_fetch)
      * Returns count of applications
      */
-    private function applicationListFetch($entity, $status)
+    private function applicationListFetch($entity, $status, $username, $userRole)
     {
         $query = DB::table('housing_applicant_official_detail as haod')
             ->join('housing_applicant as ha', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
@@ -338,19 +339,31 @@ class DashboardController extends Controller
             ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
             ->where('hoa.status', $status);
 
-        if ($entity == 'new-apply') {
+        // 🔹 Role-based filter (DDO)
+        if ($userRole == 11) {
+            $query->where('hd.ddo_code', $username);
+        }
+
+        // 🔹 Entity-based joins
+        if ($entity === 'new-apply') {
+
             $query->join('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hna.flat_type_id');
-        } elseif ($entity == 'vs') {
+
+        } elseif ($entity === 'vs') {
+
             $query->join('housing_vs_application as hva', 'hva.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hva.flat_type_id');
-        } elseif ($entity == 'cs') {
+
+        } elseif ($entity === 'cs') {
+
             $query->join('housing_cs_application as hca', 'hca.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hca.flat_type_id');
         }
 
         return $query->count();
     }
+
 
     /**
      * Pending App List Fetch Secy (matching Drupal pending_app_list_fetch_secy)
