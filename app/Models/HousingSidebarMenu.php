@@ -21,11 +21,13 @@ class HousingSidebarMenu extends Model
         'parent_id',
         'order_no',
         'is_active',
+        'route_params',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'order_no' => 'integer',
+        'route_params' => 'array',
     ];
 
     /**
