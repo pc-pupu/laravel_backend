@@ -55,6 +55,7 @@ class SidebarMenuController extends Controller
                     'icon_class' => $menu->icon_class,
                     'parent_id' => $menu->parent_id,
                     'order_no' => $menu->order_no,
+                    'route_params' => $menu->route_params ?? [],
                     'has_submenu' => $menu->children->count() > 0,
                     'children' => $menu->children->map(function ($child) {
                         return [
@@ -65,6 +66,7 @@ class SidebarMenuController extends Controller
                             'icon_class' => $child->icon_class,
                             'parent_id' => $child->parent_id,
                             'order_no' => $child->order_no,
+                            'route_params' => $child->route_params ?? [],
                         ];
                     })->toArray(),
                 ];
@@ -95,6 +97,7 @@ class SidebarMenuController extends Controller
                     'parent_name' => $menu->parent ? $menu->parent->menu_name : null,
                     'order_no' => $menu->order_no,
                     'is_active' => $menu->is_active,
+                    'route_params' => $menu->route_params ?? [],
                     'roles' => $menu->roles->map(function ($role) {
                         return [
                             'id' => $role->id,
@@ -123,6 +126,7 @@ class SidebarMenuController extends Controller
             'parent_id' => 'nullable|exists:housing_sidebar_menus,sidebar_menu_id',
             'order_no' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
+            'route_params' => 'nullable',
             'roles' => 'required|array|min:1',
             'roles.*' => 'exists:roles,id',
         ]);
@@ -137,6 +141,15 @@ class SidebarMenuController extends Controller
 
         DB::beginTransaction();
         try {
+            // Normalize route_params - ensure it's an array or object
+            $routeParams = $request->route_params;
+            if ($routeParams !== null) {
+                // If it's already an array/object, use it; otherwise try to parse
+                if (!is_array($routeParams)) {
+                    $routeParams = json_decode(json_encode($routeParams), true);
+                }
+            }
+            
             $menu = HousingSidebarMenu::create([
                 'menu_name' => $request->menu_name,
                 'route_name' => $request->route_name,
@@ -145,6 +158,7 @@ class SidebarMenuController extends Controller
                 'parent_id' => $request->parent_id,
                 'order_no' => $request->order_no ?? 0,
                 'is_active' => $request->is_active ?? true,
+                'route_params' => $routeParams,
             ]);
 
             // Attach roles
@@ -190,6 +204,7 @@ class SidebarMenuController extends Controller
             'parent_id' => 'nullable|exists:housing_sidebar_menus,sidebar_menu_id',
             'order_no' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
+            'route_params' => 'nullable',
             'roles' => 'required|array|min:1',
             'roles.*' => 'exists:roles,id',
         ]);
@@ -212,6 +227,15 @@ class SidebarMenuController extends Controller
 
         DB::beginTransaction();
         try {
+            // Normalize route_params - ensure it's an array or object
+            $routeParams = $request->has('route_params') ? $request->route_params : $menu->route_params;
+            if ($routeParams !== null) {
+                // If it's already an array/object, use it; otherwise try to parse
+                if (!is_array($routeParams)) {
+                    $routeParams = json_decode(json_encode($routeParams), true);
+                }
+            }
+            
             $menu->update([
                 'menu_name' => $request->menu_name,
                 'route_name' => $request->route_name,
@@ -220,6 +244,7 @@ class SidebarMenuController extends Controller
                 'parent_id' => $request->parent_id,
                 'order_no' => $request->order_no ?? $menu->order_no,
                 'is_active' => $request->is_active ?? $menu->is_active,
+                'route_params' => $routeParams,
             ]);
 
             // Sync roles
