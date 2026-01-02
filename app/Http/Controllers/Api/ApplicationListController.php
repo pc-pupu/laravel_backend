@@ -29,7 +29,7 @@ class ApplicationListController extends Controller
         try {
             $applications = $this->fetchApplicationList($uid);
 
-            \Log::info('Fetched Application List', ['uid' => $uid, 'applications' => $applications]);
+            // \Log::info('Fetched Application List', ['uid' => $uid, 'applications' => $applications]);
             return response()->json([
                 'status' => 'success',
                 'data' => $applications,
@@ -67,13 +67,13 @@ class ApplicationListController extends Controller
                 ->orderBy('rid', 'ASC')
                 ->value('rid');
         }
-        \Log::info('Admin Application List Request', [
-            'status' => $status,
-            'entity' => $entity,
-            'page_status' => $pageStatus,
-            'user_role' => $userRole,
-            'ddo_code' => $ddoCode,
-        ]);
+        // \Log::info('Admin Application List Request', [
+        //     'status' => $status,
+        //     'entity' => $entity,
+        //     'page_status' => $pageStatus,
+        //     'user_role' => $userRole,
+        //     'ddo_code' => $ddoCode,
+        // ]);
         if (!$status || !$entity) {
             return response()->json([
                 'status' => 'error',
@@ -318,7 +318,7 @@ class ApplicationListController extends Controller
             ->orderBy('hoa.online_application_id', 'ASC')
             ->get();
 
-            \Log::info('Fetched Application List Query', ['query' => $query]);
+            // \Log::info('Fetched Application List Query', ['query' => $query]);
         return $query->map(function ($app) {
             return [
                 'online_application_id' => $app->online_application_id,
@@ -676,12 +676,12 @@ class ApplicationListController extends Controller
      */
     private function getApplicationCount($entity, $status, $userRole, $ddoCode)
     {
-        \Log::info('Getting application count', [
-            'entity' => $entity,
-            'status' => $status,
-            'userRole' => $userRole,
-            'ddoCode' => $ddoCode,
-        ]);
+        // \Log::info('Getting application count', [
+        //     'entity' => $entity,
+        //     'status' => $status,
+        //     'userRole' => $userRole,
+        //     'ddoCode' => $ddoCode,
+        // ]);
         if (!$status) {
             return 0;
         }
@@ -923,6 +923,7 @@ class ApplicationListController extends Controller
      */
     public function approveApplication(Request $request)
     {
+        
         $validator = Validator::make($request->all(), [
             'online_application_id' => 'required|integer',
             'status_new' => 'required|string',
@@ -931,8 +932,9 @@ class ApplicationListController extends Controller
             'computer_serial_no' => 'nullable|string',
             'flat_type' => 'nullable|string',
             'uid' => 'required|integer',
-            'application_form_file' => 'nullable|file|mimes:pdf|max:1024', // 1MB max
         ]);
+
+        Log::info('Approve Application Request', ['request' => $request->all()]);
 
         if ($validator->fails()) {
             return response()->json([
@@ -974,29 +976,6 @@ class ApplicationListController extends Controller
                 }
             }
 
-            // Handle file upload if provided
-            $fileId = null;
-            if ($request->hasFile('application_form_file')) {
-                $file = $request->file('application_form_file');
-                $fileName = time() . '_' . $file->getClientOriginalName();
-                $filePath = $file->storeAs('public/signed_doc', $fileName);
-                
-                $fileId = DB::table('file_managed')->insertGetId([
-                    'uid' => $uid,
-                    'filename' => $fileName,
-                    'uri' => 'public://signed_doc/' . $fileName,
-                    'filemime' => $file->getMimeType(),
-                    'filesize' => $file->getSize(),
-                    'status' => 1,
-                    'created' => now()->timestamp,
-                    'changed' => now()->timestamp,
-                ]);
-
-                // Update application with uploaded form
-                DB::table('housing_online_application')
-                    ->where('online_application_id', $onlineApplicationId)
-                    ->update(['uploaded_app_form' => $fileId]);
-            }
 
             // Get status ID
             $statusId = DB::table('housing_allotment_status_master')
@@ -1010,6 +989,21 @@ class ApplicationListController extends Controller
                     'message' => 'Invalid status',
                 ], 422);
             }
+
+            /* Added by Subham dt.02-01-2025 */
+            // Get status weight
+            $statusWeight = DB::table('housing_allotment_status_master')
+                ->where('short_code', $statusNew)
+                ->value('weight');
+
+            if(!$statusWeight) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid status',
+                ], 422);
+            }
+            /* Ended */
 
             // Update application status
             DB::table('housing_online_application')
@@ -1026,6 +1020,7 @@ class ApplicationListController extends Controller
                 'created_at' => now(),
                 'uid' => $uid,
                 'short_code' => $statusNew,
+                'status_weight' => $statusWeight, // Added by Subham dt.02-01-2025
             ]);
 
             DB::commit();
@@ -1064,7 +1059,7 @@ class ApplicationListController extends Controller
                 ->join('housing_flat_type as hft', 'hna.flat_type_id', '=', 'hft.flat_type_id')
                 ->where('hft.flat_type', $flatType);
             
-            $minSerial = $query->min(DB::raw('CAST(hoa.computer_serial_no AS UNSIGNED)'));
+            $minSerial = $query->min(DB::raw("CAST(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g') AS INTEGER)"));
             
             if ($minSerial && $minSerial < (int)$computerSerialNo) {
                 return 'Approval must begin with the application that has the lowest computer serial number with the same Flat Type.';
