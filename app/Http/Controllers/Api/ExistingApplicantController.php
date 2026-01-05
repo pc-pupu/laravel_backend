@@ -81,10 +81,11 @@ class ExistingApplicantController extends Controller
             'haod.uid'
         ]);
 
-        // Order by computer serial no (cast to integer)
+        // Order by computer serial no (alphanumeric sorting)
+        // Sort by numeric part (as text for proper alphanumeric sorting), then alphabetic part
         $query->orderByRaw("
-        CAST(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g') AS INTEGER) ASC,
-        regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC
+            LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') ASC,
+            regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC
         ");
         $perPage = (int) $request->input('per_page', 15);
         
@@ -455,24 +456,32 @@ class ExistingApplicantController extends Controller
 
             // Insert into housing_new_allotment_application
             $flatTypeId = ExistingApplicantService::getFlatTypeId(trim($data['rhe_flat_type']));
+            
+            // Handle file upload if provided
+            $extraDocPath = null;
+            if ($request->hasFile('extra_doc')) {
+                $file = $request->file('extra_doc');
+                // Validate file type (PDF only)
+                if ($file->getClientOriginalExtension() !== 'pdf' && 
+                    $file->getMimeType() !== 'application/pdf') {
+                    throw new \Exception('Only PDF files are allowed');
+                }
+                // Validate file size (1MB max)
+                if ($file->getSize() > 1048576) {
+                    throw new \Exception('File size exceeds 1MB limit');
+                }
+                // Generate filename: extra_doc_{application_id}_{timestamp}.pdf
+                $filename = 'extra_doc_' . $onlineApplicationId . '_' . time() . '.pdf';
+                // Store in: documents/NA/extra_doc/
+                $extraDocPath = $file->storeAs('documents/NA/extra_doc', $filename, 'public');
+            }
+            
             DB::table('housing_new_allotment_application')->insert([
                 'online_application_id' => $onlineApplicationId,
                 'flat_type_id' => $flatTypeId,
                 'allotment_category' => trim($data['reason']),
+                'extra_doc_path' => $extraDocPath,
             ]);
-
-            // Handle file upload if provided
-            if ($request->hasFile('extra_doc')) {
-                $file = $request->file('extra_doc');
-                $directory = 'uploads/doc/extra_doc';
-                if (!Storage::disk('public')->exists($directory)) {
-                    Storage::disk('public')->makeDirectory($directory);
-                }
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $file->storeAs($directory, $filename, 'public');
-                // File is stored but not linked to database table in Drupal either
-                // Can be added to a file reference table if needed
-            }
 
             DB::commit();
 
@@ -713,25 +722,43 @@ class ExistingApplicantController extends Controller
 
             // Update housing_new_allotment_application
             $flatTypeId = ExistingApplicantService::getFlatTypeId(trim($data['rhe_flat_type']));
-            DB::table('housing_new_allotment_application')
-                ->where('online_application_id', $onlineApplicationId)
-                ->update([
-                    'flat_type_id' => $flatTypeId,
-                    'allotment_category' => trim($data['reason']),
-                ]);
-
+            
             // Handle file upload if provided
+            $updateData = [
+                'flat_type_id' => $flatTypeId,
+                'allotment_category' => trim($data['reason']),
+            ];
+            
             if ($request->hasFile('extra_doc')) {
                 $file = $request->file('extra_doc');
-                $directory = 'doc/extra_doc';
-                if (!Storage::disk('public')->exists($directory)) {
-                    Storage::disk('public')->makeDirectory($directory);
+                // Validate file type (PDF only)
+                if ($file->getClientOriginalExtension() !== 'pdf' && 
+                    $file->getMimeType() !== 'application/pdf') {
+                    throw new \Exception('Only PDF files are allowed');
                 }
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $file->storeAs($directory, $filename, 'public');
-                // File is stored but not linked to database table in Drupal either
-                // Can be added to a file reference table if needed
+                // Validate file size (1MB max)
+                if ($file->getSize() > 1048576) {
+                    throw new \Exception('File size exceeds 1MB limit');
+                }
+                
+                // Delete old file if exists
+                $oldApp = DB::table('housing_new_allotment_application')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->first();
+                
+                if ($oldApp && $oldApp->extra_doc_path) {
+                    Storage::disk('public')->delete($oldApp->extra_doc_path);
+                }
+                
+                // Generate filename: extra_doc_{application_id}_{timestamp}.pdf
+                $filename = 'extra_doc_' . $onlineApplicationId . '_' . time() . '.pdf';
+                // Store in: documents/NA/extra_doc/
+                $updateData['extra_doc_path'] = $file->storeAs('documents/NA/extra_doc', $filename, 'public');
             }
+            
+            DB::table('housing_new_allotment_application')
+                ->where('online_application_id', $onlineApplicationId)
+                ->update($updateData);
 
             DB::commit();
 

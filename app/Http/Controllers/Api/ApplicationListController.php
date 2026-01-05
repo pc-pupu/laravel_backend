@@ -214,8 +214,10 @@ class ApplicationListController extends Controller
             $remarks = $request->input('remarks');
             $uid = $request->input('uid');
 
+
             // Validate minimum serial number requirement
             $validationError = $this->validateMinimumSerialNumber($entity, $currentStatus, $computerSerialNo, $id);
+          
             if ($validationError) {
                 DB::rollBack();
                 return response()->json([
@@ -224,28 +226,6 @@ class ApplicationListController extends Controller
                 ], 422);
             }
 
-            // Update application status
-            DB::table('housing_online_application')
-                ->where('online_application_id', $id)
-                ->update([
-                    'status' => $newStatus,
-                    'date_of_verified' => now(),
-                ]);
-
-            // Get status ID
-            $statusId = DB::table('housing_allotment_status_master')
-                ->where('short_code', $newStatus)
-                ->value('status_id');
-
-            // Insert into process flow
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $id,
-                'status_id' => $statusId,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => $newStatus,
-                'remarks' => $remarks,
-            ]);
 
             // If rejected, deactivate official detail and free flat
             if (in_array($newStatus, [
@@ -255,14 +235,37 @@ class ApplicationListController extends Controller
                 'housing_official_reject'
             ])) {
                 $this->handleRejection($id);
+
+                // Update application status
+                DB::table('housing_online_application')
+                    ->where('online_application_id', $id)
+                    ->update([
+                        'status' => $newStatus,
+                        'date_of_verified' => now(),
+                    ]);
+
+                // Get status data
+                $statusData = DB::table('housing_allotment_status_master')
+                    ->where('short_code', $newStatus)
+                    ->first();
+
+                // Insert into process flow
+                DB::table('housing_process_flow')->insert([
+                    'online_application_id' => $id,
+                    'status_id' => $statusData->status_id,
+                    'created_at' => now(),
+                    'uid' => $uid,
+                    'short_code' => $newStatus,
+                    'status_weight' => $statusData->weight,
+                ]);
             }
 
             DB::commit();
 
             // Send notification if rejected
-            if (strpos($newStatus, 'reject') !== false || strpos($newStatus, 'rejected') !== false) {
-                $this->sendRejectionNotification($id);
-            }
+            // if (strpos($newStatus, 'reject') !== false || strpos($newStatus, 'rejected') !== false) {
+            //     $this->sendRejectionNotification($id);
+            // }
 
             return response()->json([
                 'status' => 'success',
@@ -384,14 +387,13 @@ class ApplicationListController extends Controller
             'hoa.computer_serial_no'
         );
 
-        // 🔹 PostgreSQL-safe ordering
+        // 🔹 PostgreSQL-safe ordering (alphanumeric sorting)
         if ($entity === 'new-apply') {
-
+            // Sort by numeric part (as text for proper alphanumeric sorting), then alphabetic part
             $query->orderByRaw("
-                NULLIF(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), '')::INTEGER ASC,
+                LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') ASC,
                 regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC
             ");
-
         } else {
             $query->orderBy('hoa.online_application_id', 'ASC');
         }
@@ -457,10 +459,11 @@ class ApplicationListController extends Controller
             'hsm.status_description'
         );
 
-        // Order by computer serial number for new-apply, by ID for others
+        // Order by computer serial number for new-apply (alphanumeric sorting), by ID for others
         if ($entity == 'new-apply') {
+            // Sort by numeric part (as text for proper alphanumeric sorting), then alphabetic part
             $query->orderByRaw("
-                NULLIF(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), '')::INTEGER ASC,
+                LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') ASC,
                 regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC");
         } else {
             $query->orderBy('hoa.online_application_id', 'ASC');
@@ -530,17 +533,11 @@ class ApplicationListController extends Controller
             ->leftJoin('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id')
             ->leftJoin('housing_vs_application as hva', 'hva.online_application_id', '=', 'hoa.online_application_id')
             ->leftJoin('housing_cs_application as hca', 'hca.online_application_id', '=', 'hoa.online_application_id')
-            ->leftJoin('file_managed as fm_app_form', 'fm_app_form.fid', '=', 'hoa.uploaded_app_form')
-            ->leftJoin('file_managed as fm_doc', 'fm_doc.fid', '=', 'hna.document')
-            ->leftJoin('file_managed as fm_extra_doc', 'fm_extra_doc.fid', '=', 'hna.extra_doc')
-            ->leftJoin('file_managed as fm_scaned_sign', 'fm_scaned_sign.fid', '=', 'hna.scaned_sign')
-            ->leftJoin('file_managed as fm_vs', 'fm_vs.fid', '=', 'hva.file_licence')
-            ->leftJoin('file_managed as fm_cs', 'fm_cs.fid', '=', 'hca.file_licence')
-            ->leftJoin('file_managed as fm_licence', 'fm_licence.fid', '=', 'hla.document')
             ->leftJoin('housing_license_application as hla', 'hla.online_application_id', '=', 'hoa.online_application_id')
             ->where('hoa.online_application_id', $onlineApplicationId)
             ->where('hpf.short_code', $status)
             ->select(
+                'hoa.status as application_status',
                 'hoa.*',
                 'haod.*',
                 'hd.*',
@@ -554,15 +551,7 @@ class ApplicationListController extends Controller
                 'hpf.remarks',
                 'hsm.status_description',
                 'hna.allotment_category as na_allotment_category',
-                'hva.allotment_category as vs_allotment_category',
-                'hca.allotment_category as cs_allotment_category',
-                'fm_app_form.uri as uri_app_form',
-                'fm_doc.uri as uri_doc',
-                'fm_extra_doc.uri as uri_extra_doc',
-                'fm_scaned_sign.uri as uri_scaned_sign',
-                'fm_vs.uri as uri_vs',
-                'fm_cs.uri as uri_cs',
-                'fm_licence.uri as uri_licence'
+                'hna.extra_doc_path',
             )
             ->first();
 
@@ -757,9 +746,16 @@ class ApplicationListController extends Controller
                 ->where('hoa.computer_serial_no', '!=', '0')
                 ->where('hoa.computer_serial_no', '!=', '')
                 ->whereRaw("TRIM(COALESCE(hoa.computer_serial_no, '')) != ''");
-            $minSerial = $query->min(DB::raw('CAST(hoa.computer_serial_no AS UNSIGNED)'));
             
-            if ($minSerial && $minSerial < (int)$computerSerialNo) {
+            // Get minimum computer_serial_no (alphanumeric comparison)
+            // Compare by numeric part first, then alphabetic part
+            $minSerial = $query->orderByRaw("
+                LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') ASC,
+                regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC
+            ")->value('hoa.computer_serial_no');
+            
+            // Compare alphanumeric strings properly
+            if ($minSerial && $this->compareAlphanumeric($minSerial, $computerSerialNo) < 0) {
                 return 'Approval or Rejection must begin with the application that has the lowest computer serial number.';
             }
         } else {
@@ -784,6 +780,11 @@ class ApplicationListController extends Controller
             ->where('hoa.online_application_id', $applicationId)
             ->select('haod.applicant_official_detail_id', 'hfo.flat_id')
             ->first();
+
+            \Log::info('Handling Rejection', [
+                'application_id' => $applicationId,
+                'official_detail' => $officialDetail,
+            ]);
 
         if ($officialDetail) {
             // Deactivate official detail
@@ -1013,6 +1014,7 @@ class ApplicationListController extends Controller
             }
 
 
+        
             // Get status ID
             $statusId = DB::table('housing_allotment_status_master')
                 ->where('short_code', $statusNew)
@@ -1098,9 +1100,15 @@ class ApplicationListController extends Controller
                 if($role == 11){
                     $query->where('hd.ddo_code', $userName);
                 }
-            $minSerial = $query->min(DB::raw("CAST(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g') AS INTEGER)"));
+            // Get minimum computer_serial_no (alphanumeric comparison)
+            // Compare by numeric part first, then alphabetic part
+            $minSerial = $query->orderByRaw("
+                LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') ASC,
+                regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC
+            ")->value('hoa.computer_serial_no');
             
-            if ($minSerial && $minSerial < (int)$computerSerialNo) {
+            // Compare alphanumeric strings properly
+            if ($minSerial && $this->compareAlphanumeric($minSerial, $computerSerialNo) < 0) {
                 return 'Approval must begin with the application that has the lowest computer serial number with the same Flat Type.';
             }
         } else {
@@ -1304,6 +1312,30 @@ class ApplicationListController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Compare two alphanumeric computer serial numbers
+     * Returns: -1 if $a < $b, 0 if equal, 1 if $a > $b
+     */
+    private function compareAlphanumeric($a, $b)
+    {
+        // Extract numeric parts
+        $numA = preg_replace('/[^0-9]/', '', $a);
+        $numB = preg_replace('/[^0-9]/', '', $b);
+        
+        // Compare numeric parts first
+        $numCompare = strcmp(str_pad($numA, 10, '0', STR_PAD_LEFT), str_pad($numB, 10, '0', STR_PAD_LEFT));
+        if ($numCompare !== 0) {
+            return $numCompare < 0 ? -1 : 1;
+        }
+        
+        // If numeric parts are equal, compare alphabetic parts
+        $alphaA = preg_replace('/[0-9]/', '', $a);
+        $alphaB = preg_replace('/[0-9]/', '', $b);
+        $alphaCompare = strcmp($alphaA, $alphaB);
+        
+        return $alphaCompare < 0 ? -1 : ($alphaCompare > 0 ? 1 : 0);
     }
 }
 

@@ -226,12 +226,12 @@ class DashboardController extends Controller
                 'officeName' => 'Housing Department',
             ];
 
-            $output['new-apply'] = $this->applicationListFetch('new-apply', 'ddo_verified_1');
-            $output['vs'] = $this->applicationListFetch('vs', 'ddo_verified_1');
-            $output['cs'] = $this->applicationListFetch('cs', 'ddo_verified_1');
-            $output['allotted-apply'] = $this->applicationListFetch('new-apply', 'ddo_verified_2');
-            $output['allotted-vs'] = $this->applicationListFetch('vs', 'ddo_verified_2');
-            $output['allotted-cs'] = $this->applicationListFetch('cs', 'ddo_verified_2');
+            $output['new-apply'] = $this->applicationListFetch('new-apply', 'ddo_verified_1',$username,$userRole);
+            $output['vs'] = $this->applicationListFetch('vs', 'ddo_verified_1',$username,$userRole);
+            $output['cs'] = $this->applicationListFetch('cs', 'ddo_verified_1',$username,$userRole);
+            $output['allotted-apply'] = $this->applicationListFetch('new-apply', 'ddo_verified_2',$username,$userRole);
+            $output['allotted-vs'] = $this->applicationListFetch('vs', 'ddo_verified_2',$username,$userRole);
+            $output['allotted-cs'] = $this->applicationListFetch('cs', 'ddo_verified_2',$username,$userRole);
 
         } elseif ($userRole == 13) {
             // Housing Approver
@@ -243,12 +243,12 @@ class DashboardController extends Controller
                 'officeName' => 'Housing Department',
             ];
 
-            $output['new-apply'] = $this->applicationListFetch('new-apply', 'housing_sup_approved_1');
-            $output['vs'] = $this->applicationListFetch('vs', 'housing_sup_approved_1');
-            $output['cs'] = $this->applicationListFetch('cs', 'housing_sup_approved_1');
-            $output['allotted-apply'] = $this->applicationListFetch('new-apply', 'housing_sup_approved_2');
-            $output['allotted-vs'] = $this->applicationListFetch('vs', 'housing_sup_approved_2');
-            $output['allotted-cs'] = $this->applicationListFetch('cs', 'housing_sup_approved_2');
+            $output['new-apply'] = $this->applicationListFetch('new-apply', 'housing_sup_approved_1',$username,$userRole);
+            $output['vs'] = $this->applicationListFetch('vs', 'housing_sup_approved_1',$username,$userRole);
+            $output['cs'] = $this->applicationListFetch('cs', 'housing_sup_approved_1',$username,$userRole);
+            $output['allotted-apply'] = $this->applicationListFetch('new-apply', 'housing_sup_approved_2',$username,$userRole);
+            $output['allotted-vs'] = $this->applicationListFetch('vs', 'housing_sup_approved_2',$username,$userRole);
+            $output['allotted-cs'] = $this->applicationListFetch('cs', 'housing_sup_approved_2',$username,$userRole);
 
         } elseif ($userRole == 6) {
             // Housing Official
@@ -319,7 +319,6 @@ class DashboardController extends Controller
                 'haod.applicant_designation',
                 'ha.applicant_name',
                 'hasm.status_description',
-                'hnaa.extra_doc',
                 'hnaa.extra_doc_path',
                 'hnaa.allotment_category'
             )
