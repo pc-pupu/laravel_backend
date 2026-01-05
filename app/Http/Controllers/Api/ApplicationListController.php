@@ -67,13 +67,8 @@ class ApplicationListController extends Controller
                 ->orderBy('rid', 'ASC')
                 ->value('rid');
         }
-        // \Log::info('Admin Application List Request', [
-        //     'status' => $status,
-        //     'entity' => $entity,
-        //     'page_status' => $pageStatus,
-        //     'user_role' => $userRole,
-        //     'ddo_code' => $ddoCode,
-        // ]);
+        
+        
         if (!$status || !$entity) {
             return response()->json([
                 'status' => 'error',
@@ -90,11 +85,21 @@ class ApplicationListController extends Controller
             }
 
             // Get counts for verified and rejected
+            $actionStatus = $this->getActionStatus($status, $userRole);
             $verifiedStatus = $this->getVerifiedStatus($status, $userRole);
             $rejectedStatus = $this->getRejectedStatus($status, $userRole);
 
+            \Log::info('Application Counts', [
+                'status' => $status,
+                'actionStatus' => $actionStatus,
+                'verifiedStatus' => $verifiedStatus,
+                'rejectedStatus' => $rejectedStatus,
+                'userRole' => $userRole,
+                'ddoCode' => $ddoCode,
+            ]);
+           
             $counts = [
-                'total' => count($applications),
+                'total' => $this->getApplicationCount($entity, $actionStatus, $userRole, $ddoCode),
                 'verified' => $this->getApplicationCount($entity, $verifiedStatus, $userRole, $ddoCode),
                 'rejected' => $this->getApplicationCount($entity, $rejectedStatus, $userRole, $ddoCode),
             ];
@@ -454,8 +459,9 @@ class ApplicationListController extends Controller
 
         // Order by computer serial number for new-apply, by ID for others
         if ($entity == 'new-apply') {
-            $query->orderByRaw('CAST(hoa.computer_serial_no AS UNSIGNED) ASC')
-                ->orderBy('hoa.computer_serial_no', 'ASC');
+            $query->orderByRaw("
+                NULLIF(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), '')::INTEGER ASC,
+                regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC");
         } else {
             $query->orderBy('hoa.online_application_id', 'ASC');
         }
@@ -618,70 +624,97 @@ class ApplicationListController extends Controller
         return $flatDetails ? (array) $flatDetails : null;
     }
 
-    /**
-     * Get verified status based on current status and user role
-     */
-    private function getVerifiedStatus($status, $userRole)
+    private function getActionStatus(string $status, int $userRole): ?string
     {
         $statusMap = [
-            '11' => [ // DDO
-                'applied' => 'ddo_verified_1',
-                'applicant_acceptance' => 'ddo_verified_2',
+            11 => [ // DDO
+                'applied',
+                'applicant_acceptance',
             ],
-            '10' => [ // Housing Supervisor
-                'ddo_verified_1' => 'housing_sup_approved_1',
-                'ddo_verified_2' => 'housing_sup_approved_2',
+            10 => [ // Housing Supervisor
+                'ddo_verified_1',
+                'ddo_verified_2',
             ],
-            '13' => [ // Housing Approver
-                'housing_sup_approved_1' => 'housingapprover_approved_1',
-                'housing_sup_approved_2' => 'housingapprover_approved_2',
+            13 => [ // Housing Approver
+                'housing_sup_approved_1',
+                'housing_sup_approved_2',
             ],
-            '6' => [ // Housing Official
-                'housingapprover_approved_1' => 'housing_official_approved',
-                'housingapprover_approved_2' => 'housing_official_approved',
+            6 => [ // Housing Official
+                'housingapprover_approved_1',
+                'housingapprover_approved_2',
             ],
         ];
 
-        return $statusMap[$userRole][$status] ?? null;
+        return in_array($status, $statusMap[$userRole] ?? [], true)
+            ? $status
+            : null;
     }
+
+
+    /**
+     * Get verified status based on current status and user role
+     */
+    private function getVerifiedStatus(string $status, int $userRole): ?string
+    {
+        $map = [
+            11 => [ // DDO
+                'applied'              => 'ddo_verified_1',
+                'applicant_acceptance' => 'ddo_verified_2',
+            ],
+            10 => [ // Housing Supervisor
+                'ddo_verified_1' => 'housing_sup_approved_1',
+                'ddo_verified_2' => 'housing_sup_approved_2',
+            ],
+            13 => [ // Housing Approver
+                'housing_sup_approved_1' => 'housingapprover_approved_1',
+                'housing_sup_approved_2' => 'housingapprover_approved_2',
+            ],
+            6 => [ // Housing Official
+                '*' => 'housing_official_approved',
+            ],
+        ];
+
+        return $map[$userRole][$status]
+            ?? $map[$userRole]['*']
+            ?? null;
+    }
+
 
     /**
      * Get rejected status based on current status and user role
      */
-    private function getRejectedStatus($status, $userRole)
+    private function getRejectedStatus(string $status, int $userRole): ?string
     {
-        $statusMap = [
-            '11' => [ // DDO
-                'applied' => 'ddo_rejected_1',
+        $map = [
+            11 => [ // DDO
+                'applied'              => 'ddo_rejected_1',
                 'applicant_acceptance' => 'ddo_rejected_2',
             ],
-            '10' => [ // Housing Supervisor
+            10 => [ // Housing Supervisor
                 'ddo_verified_1' => 'housing_sup_reject_1',
                 'ddo_verified_2' => 'housing_sup_reject_2',
             ],
-            '13' => [ // Housing Approver
+            13 => [ // Housing Approver
                 'housing_sup_approved_1' => 'housing_approver_reject_1',
                 'housing_sup_approved_2' => 'housing_approver_reject_2',
             ],
-            '6' => [ // Housing Official
-                'housing_official_approved' => 'housing_official_reject',
+            6 => [ // Housing Official
+                '*' => 'housing_official_reject',
             ],
         ];
 
-        return $statusMap[$userRole][$status] ?? null;
+        return $map[$userRole][$status]
+            ?? $map[$userRole]['*']
+            ?? null;
     }
+
 
     /**
      * Get application count
      */
     private function getApplicationCount($entity, $status, $userRole, $ddoCode)
     {
-        // \Log::info('Getting application count', [
-        //     'entity' => $entity,
-        //     'status' => $status,
-        //     'userRole' => $userRole,
-        //     'ddoCode' => $ddoCode,
-        // ]);
+        
         if (!$status) {
             return 0;
         }
@@ -842,10 +875,11 @@ class ApplicationListController extends Controller
         }
 
         try {
+            
             // Get verified and rejected statuses based on user role and current status
             $verifiedStatus = $this->getVerifiedStatus($status, $userRole);
             $rejectedStatus = $this->getRejectedStatus($status, $userRole);
-
+            
             // Get counts
             $actionCount = $this->getApplicationCount($entity, $status, $userRole, $ddoCode);
             $verifiedCount = $verifiedStatus ? $this->getApplicationCountForVerifiedReject($entity, $verifiedStatus, $userRole, $ddoCode) : 0;
@@ -934,7 +968,7 @@ class ApplicationListController extends Controller
             'uid' => 'required|integer',
         ]);
 
-        Log::info('Approve Application Request', ['request' => $request->all()]);
+        // Log::info('Approve Application Request', ['request' => $request->all()]);
 
         if ($validator->fails()) {
             return response()->json([
@@ -954,10 +988,12 @@ class ApplicationListController extends Controller
             $computerSerialNo = $request->input('computer_serial_no');
             $flatType = $request->input('flat_type');
             $uid = $request->input('uid');
+            $role = $request->input('role');
+            $userName = $request->input('userName');
 
             // Validate minimum serial number requirement (by flat type for new-apply)
             if ($entity == 'new-apply' && $flatType) {
-                $validationError = $this->validateMinimumSerialNumberByFlatType($entity, $status, $flatType, $computerSerialNo, $onlineApplicationId);
+                $validationError = $this->validateMinimumSerialNumberByFlatType($entity, $status, $flatType, $computerSerialNo, $onlineApplicationId, $role, $userName);
                 if ($validationError) {
                     DB::rollBack();
                     return response()->json([
@@ -1047,7 +1083,7 @@ class ApplicationListController extends Controller
     /**
      * Validate minimum serial number by flat type
      */
-    private function validateMinimumSerialNumberByFlatType($entity, $status, $flatType, $computerSerialNo, $applicationId)
+    private function validateMinimumSerialNumberByFlatType($entity, $status, $flatType, $computerSerialNo, $applicationId, $role, $userName)
     {
         $query = DB::table('housing_applicant_official_detail as haod')
             ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
@@ -1057,8 +1093,11 @@ class ApplicationListController extends Controller
         if ($entity == 'new-apply') {
             $query->join('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hna.flat_type_id', '=', 'hft.flat_type_id')
+                ->join('housing_ddo as hd', 'hd.ddo_id', '=', 'haod.ddo_id')
                 ->where('hft.flat_type', $flatType);
-            
+                if($role == 11){
+                    $query->where('hd.ddo_code', $userName);
+                }
             $minSerial = $query->min(DB::raw("CAST(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g') AS INTEGER)"));
             
             if ($minSerial && $minSerial < (int)$computerSerialNo) {
