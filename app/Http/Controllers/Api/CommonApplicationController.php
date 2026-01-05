@@ -254,12 +254,25 @@ class CommonApplicationController extends Controller
             if (!$checkNa) {
                 $computerSerialNo = '200001';
             } else {
+                // Get max computer_serial_no (alphanumeric) - sort by numeric part, then alphabetic
                 $maxSerial = DB::table('housing_online_application')
                     ->whereRaw("(substring(application_no, 1, 2) = 'NA' OR substring(application_no, 1, 2) = 'PA')")
                     ->whereNotNull('computer_serial_no')
-                    ->selectRaw("max(to_number(computer_serial_no, '9999999999')) as no")
-                    ->value('no');
-                $computerSerialNo = ($maxSerial ?? 200000) + 1;
+                    ->orderByRaw("
+                        LPAD(regexp_replace(computer_serial_no, '[^0-9]', '', 'g'), 10, '0') DESC,
+                        regexp_replace(computer_serial_no, '[0-9]', '', 'g') DESC
+                    ")
+                    ->value('computer_serial_no');
+                
+                if ($maxSerial) {
+                    // Extract numeric part and increment
+                    $numPart = preg_replace('/[^0-9]/', '', $maxSerial);
+                    $alphaPart = preg_replace('/[0-9]/', '', $maxSerial);
+                    $nextNum = (int)$numPart + 1;
+                    $computerSerialNo = $nextNum . $alphaPart;
+                } else {
+                    $computerSerialNo = '200001';
+                }
             }
         }
 

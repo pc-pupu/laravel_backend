@@ -92,17 +92,19 @@ class LicenseController extends Controller
                 ->where('online_application_id', $applicationId)
                 ->update(['status' => 'license_generate']);
 
-            // Insert into process flow
-            $statusId = DB::table('housing_allotment_status_master')
+            // Get status data
+            $statusData = DB::table('housing_allotment_status_master')
                 ->where('short_code', 'license_generate')
-                ->value('status_id');
+                ->first();
 
+            // Insert into process flow
             DB::table('housing_process_flow')->insert([
                 'online_application_id' => $applicationId,
-                'status_id' => $statusId,
+                'status_id' => $statusData->status_id,
                 'created_at' => now(),
                 'uid' => $uid,
                 'short_code' => 'license_generate',
+                'status_weight' => $statusData->weight,
             ]);
 
             DB::commit();

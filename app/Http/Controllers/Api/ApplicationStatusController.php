@@ -365,17 +365,19 @@ class ApplicationStatusController extends Controller
                 ->where('flat_id', $licenseData->flat_id)
                 ->update(['flat_status_id' => 2]); // 2 = Occupied
 
-            // Insert into process flow
-            $statusId = DB::table('housing_allotment_status_master')
+            // Get status data
+            $statusData = DB::table('housing_allotment_status_master')
                 ->where('short_code', 'flat_possession_taken')
-                ->value('status_id');
+                ->first();
 
+            // Insert into process flow
             DB::table('housing_process_flow')->insert([
                 'online_application_id' => $id,
-                'status_id' => $statusId,
+                'status_id' => $statusData->status_id,
                 'created_at' => now(),
                 'uid' => $uid,
                 'short_code' => 'flat_possession_taken',
+                'status_weight' => $statusData->weight,
             ]);
 
             DB::commit();
@@ -452,17 +454,19 @@ class ApplicationStatusController extends Controller
                     'date_of_verified' => now(),
                 ]);
 
-            // Insert into process flow
-            $statusId = DB::table('housing_allotment_status_master')
+            // Get status data
+            $statusData = DB::table('housing_allotment_status_master')
                 ->where('short_code', 'flat_released')
-                ->value('status_id');
+                ->first();
 
+            // Insert into process flow
             DB::table('housing_process_flow')->insert([
                 'online_application_id' => $id,
-                'status_id' => $statusId,
+                'status_id' => $statusData->status_id,
                 'created_at' => now(),
                 'uid' => $uid,
                 'short_code' => 'flat_released',
+                'status_weight' => $statusData->weight,
             ]);
 
             // Deactivate official detail and free flat
@@ -561,17 +565,19 @@ class ApplicationStatusController extends Controller
                 ->where('applicant_official_detail_id', $officialDetailId)
                 ->update(['is_active' => 1]);
 
-            // Insert into process flow
-            $statusId = DB::table('housing_allotment_status_master')
+            // Get status data
+            $statusData = DB::table('housing_allotment_status_master')
                 ->where('short_code', 'license_extended')
-                ->value('status_id');
+                ->first();
 
+            // Insert into process flow
             DB::table('housing_process_flow')->insert([
                 'online_application_id' => $id,
-                'status_id' => $statusId,
+                'status_id' => $statusData->status_id,
                 'created_at' => now(),
                 'uid' => $uid,
                 'short_code' => 'license_extended',
+                'status_weight' => $statusData->weight,
             ]);
 
             // Insert extension record
@@ -694,17 +700,19 @@ class ApplicationStatusController extends Controller
                 ->where('applicant_official_detail_id', $officialDetailId)
                 ->update(['is_active' => 1]);
 
-            // Insert into process flow
-            $statusId = DB::table('housing_allotment_status_master')
+            // Get status data
+            $statusData = DB::table('housing_allotment_status_master')
                 ->where('short_code', 'offer_letter_extended')
-                ->value('status_id');
+                ->first();
 
+            // Insert into process flow
             DB::table('housing_process_flow')->insert([
                 'online_application_id' => $id,
-                'status_id' => $statusId,
+                'status_id' => $statusData->status_id,
                 'created_at' => now(),
                 'uid' => $uid,
                 'short_code' => 'offer_letter_extended',
+                'status_weight' => $statusData->weight,
             ]);
 
             // Insert extension record

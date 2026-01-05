@@ -282,6 +282,7 @@ class VerticalShiftingController extends Controller
                 $scannedSign = $filePath;
             }
 
+
             // Convert possession date
             $possessionDate = Carbon::createFromFormat('d/m/Y', $request->input('possession_date'))->format('Y-m-d');
 
@@ -328,11 +329,25 @@ class VerticalShiftingController extends Controller
             if ($onlineVsId == 0) {
                 // Create new application
                 $onlineApplicationId = $this->createOnlineApplication($uid, $action, 'VS', $request);
-                $this->createVsApplication($onlineApplicationId, $request, $payBandData->flat_type_id, $possessionDate, $fileLicence, $scannedSign);
+                
+                // Handle extra_doc upload if provided
+                if ($request->hasFile('extra_doc')) {
+                    $extraDocPath = $this->handleDocumentUpload($request->file('extra_doc'), $onlineApplicationId, 'VS');
+                }
+                
+                $this->createVsApplication($onlineApplicationId, $request, $payBandData->flat_type_id, $possessionDate, $fileLicence, $scannedSign, $extraDocPath);
             } else {
                 // Update existing application
                 $this->updateOnlineApplication($onlineVsId, $action, $request);
-                $this->updateVsApplication($onlineVsId, $request, $payBandData->flat_type_id, $possessionDate, $fileLicence, $scannedSign);
+                
+                // Handle extra_doc upload if provided
+                if ($request->hasFile('extra_doc')) {
+                    $extraDocPath = $this->handleDocumentUpload($request->file('extra_doc'), $onlineVsId, 'VS');
+                } else {
+                    $extraDocPath = null; // Keep existing if not provided
+                }
+                
+                $this->updateVsApplication($onlineVsId, $request, $payBandData->flat_type_id, $possessionDate, $fileLicence, $scannedSign, $extraDocPath);
             }
 
             DB::commit();
@@ -450,9 +465,9 @@ class VerticalShiftingController extends Controller
     /**
      * Helper: Create VS application
      */
-    private function createVsApplication($onlineApplicationId, $request, $flatTypeId, $possessionDate, $fileLicence, $scannedSign)
+    private function createVsApplication($onlineApplicationId, $request, $flatTypeId, $possessionDate, $fileLicence, $scannedSign, $extraDocPath = null)
     {
-        DB::table('housing_vs_application')->insert([
+        $vsData = [
             'online_application_id' => $onlineApplicationId,
             'flat_type_id' => $flatTypeId,
             'occupation_estate' => $request->input('occupation_estate'),
@@ -463,13 +478,49 @@ class VerticalShiftingController extends Controller
             'scanned_sign' => $scannedSign,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ];
+        
+        if ($extraDocPath !== null) {
+            $vsData['extra_doc_path'] = $extraDocPath;
+        }
+        
+        DB::table('housing_vs_application')->insert($vsData);
+    }
+
+    /**
+     * Handle document upload for VS
+     */
+    private function handleDocumentUpload($file, $applicationId, $appType = 'VS')
+    {
+        // Validate file
+        if (!$file->isValid()) {
+            throw new \Exception('Invalid file uploaded');
+        }
+
+        // Validate file type (PDF only)
+        if ($file->getClientOriginalExtension() !== 'pdf' && 
+            $file->getMimeType() !== 'application/pdf') {
+            throw new \Exception('Only PDF files are allowed');
+        }
+
+        // Validate file size (1MB max)
+        if ($file->getSize() > 1048576) {
+            throw new \Exception('File size exceeds 1MB limit');
+        }
+
+        // Generate filename: extra_doc_{application_id}_{timestamp}.pdf
+        $filename = 'extra_doc_' . $applicationId . '_' . time() . '.pdf';
+        
+        // Store in: documents/{appType}/extra_doc/
+        $path = $file->storeAs('documents/' . $appType . '/extra_doc', $filename, 'public');
+        
+        return $path;
     }
 
     /**
      * Helper: Update VS application
      */
-    private function updateVsApplication($onlineApplicationId, $request, $flatTypeId, $possessionDate, $fileLicence, $scannedSign)
+    private function updateVsApplication($onlineApplicationId, $request, $flatTypeId, $possessionDate, $fileLicence, $scannedSign, $extraDocPath = null)
     {
         $updateData = [
             'flat_type_id' => $flatTypeId,
@@ -504,6 +555,19 @@ class VerticalShiftingController extends Controller
             }
 
             $updateData['scanned_sign'] = $scannedSign;
+        }
+
+        if ($extraDocPath !== null) {
+            // Delete old file if exists
+            $oldApp = DB::table('housing_vs_application')
+                ->where('online_application_id', $onlineApplicationId)
+                ->first();
+            
+            if ($oldApp && $oldApp->extra_doc_path) {
+                Storage::disk('public')->delete($oldApp->extra_doc_path);
+            }
+
+            $updateData['extra_doc_path'] = $extraDocPath;
         }
 
         DB::table('housing_vs_application')

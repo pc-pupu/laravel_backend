@@ -169,18 +169,19 @@ class ViewAllotmentDetailsController extends Controller
                     ->where('online_application_id', $onlineApplicationId)
                     ->update(['status' => 'applicant_reject']);
 
-                // Get status_id
-                $statusId = DB::table('housing_allotment_status_master')
+                // Get status data
+                $statusData = DB::table('housing_allotment_status_master')
                     ->where('short_code', 'applicant_reject')
-                    ->value('status_id');
+                    ->first();
 
                 // Insert process flow
                 DB::table('housing_process_flow')->insert([
                     'online_application_id' => $onlineApplicationId,
-                    'status_id' => $statusId,
+                    'status_id' => $statusData->status_id,
                     'created_at' => now(),
                     'uid' => $userId,
-                    'short_code' => 'applicant_reject'
+                    'short_code' => 'applicant_reject',
+                    'status_weight' => $statusData->weight,
                 ]);
 
                 // Get flat_id and applicant_official_detail_id
