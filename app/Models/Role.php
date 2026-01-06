@@ -15,10 +15,12 @@ class Role extends Model
         'name',
         'guard_name',
         'drupal_role_id',
+        'is_active'
     ];
 
     protected $casts = [
         'drupal_role_id' => 'integer',
+        'is_active' => 'integer',
     ];
 
     // Relationships
