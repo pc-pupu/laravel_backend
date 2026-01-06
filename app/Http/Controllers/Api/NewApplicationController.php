@@ -187,21 +187,20 @@ class NewApplicationController extends Controller
                 ->where('short_code', 'applied')
                 ->first();
 
-            $processFlowdataInsert = DB::table('housing_process_flow')->insert([
+            DB::table('housing_process_flow')->insert([
                 'online_application_id' => $onlineApplicationId,
+                'status_id' => $getStatusData->status_id,
+                'created_at' => now(),
                 'uid' => $uid,
                 'short_code' => 'applied',
-                'remarks' => null,
-                'status_id' => $getStatusData->status_id,
-                'status_weight'=> $getStatusData->weight,
-                'created_at' => Carbon::now(),
+                'status_weight' => $getStatusData->weight,
             ]);
 
 
             // Step 4: Handle document upload
             $documentPath = null;
             if ($request->hasFile('extra_doc')) {
-                $documentPath = $this->handleDocumentUpload($request->file('extra_doc'), $uid);
+                $documentPath = $this->handleDocumentUpload($request->file('extra_doc'), $onlineApplicationId, 'NA');
                 // Update new allotment application with document path
                 if ($documentPath) {
                     DB::table('housing_new_allotment_application')
@@ -370,8 +369,12 @@ class NewApplicationController extends Controller
 
     /**
      * Handle document upload
+     * @param \Illuminate\Http\UploadedFile $file
+     * @param int $applicationId The online_application_id
+     * @param string $appType Application type: 'NA' for new application, 'VS' for vertical shifting
+     * @return string The stored file path
      */
-    private function handleDocumentUpload($file, $uid)
+    private function handleDocumentUpload($file, $applicationId, $appType = 'NA')
     {
         // Validate file
         if (!$file->isValid()) {
@@ -389,8 +392,11 @@ class NewApplicationController extends Controller
             throw new \Exception('File size exceeds 1MB limit');
         }
 
-        $filename = 'extra_doc_' . $uid . '_' . time() . '.pdf';
-        $path = $file->storeAs('documents/NA/extra_doc', $filename, 'public');
+        // Generate filename: extra_doc_{application_id}_{timestamp}.pdf
+        $filename = 'extra_doc_' . $applicationId . '_' . time() . '.pdf';
+        
+        // Store in: documents/{appType}/extra_doc/
+        $path = $file->storeAs('documents/' . $appType . '/extra_doc', $filename, 'public');
         
         return $path;
     }
@@ -720,12 +726,25 @@ class NewApplicationController extends Controller
             if (!$checkNa) {
                 $computerSerialNo = '200001';
             } else {
+                // Get max computer_serial_no (alphanumeric) - sort by numeric part, then alphabetic
                 $maxSerial = DB::table('housing_online_application')
                     ->whereRaw("(substring(application_no, 1, 2) = 'NA' OR substring(application_no, 1, 2) = 'PA')")
                     ->whereNotNull('computer_serial_no')
-                    ->selectRaw("max(to_number(computer_serial_no, '9999999999')) as no")
-                    ->value('no');
-                $computerSerialNo = ($maxSerial ?? 200000) + 1;
+                    ->orderByRaw("
+                        LPAD(regexp_replace(computer_serial_no, '[^0-9]', '', 'g'), 10, '0') DESC,
+                        regexp_replace(computer_serial_no, '[0-9]', '', 'g') DESC
+                    ")
+                    ->value('computer_serial_no');
+                
+                if ($maxSerial) {
+                    // Extract numeric part and increment
+                    $numPart = preg_replace('/[^0-9]/', '', $maxSerial);
+                    $alphaPart = preg_replace('/[0-9]/', '', $maxSerial);
+                    $nextNum = (int)$numPart + 1;
+                    $computerSerialNo = $nextNum . $alphaPart;
+                } else {
+                    $computerSerialNo = '200001';
+                }
             }
         }
 

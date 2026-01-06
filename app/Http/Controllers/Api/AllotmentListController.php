@@ -490,17 +490,19 @@ class AllotmentListController extends Controller
                         'date_of_verified' => now()
                     ]);
 
-                // Insert process flow
-                $statusId = DB::table('housing_allotment_status_master')
+                // Get status data
+                $statusData = DB::table('housing_allotment_status_master')
                     ->where('short_code', 'housing_official_approved')
-                    ->value('status_id') ?? 9;
+                    ->first();
 
+                // Insert process flow
                 DB::table('housing_process_flow')->insert([
                     'online_application_id' => $appId,
-                    'status_id' => $statusId,
+                    'status_id' => $statusData->status_id ?? 9,
                     'created_at' => now(),
                     'uid' => $userId,
-                    'short_code' => 'housing_official_approved'
+                    'short_code' => 'housing_official_approved',
+                    'status_weight' => $statusData->weight ?? 0,
                 ]);
 
                 // Update flat occupant
@@ -594,18 +596,19 @@ class AllotmentListController extends Controller
                         'allotment_approve_or_reject_date' => now()->format('Y-m-d')
                     ]);
 
-                // Get status_id
-                $statusId = DB::table('housing_allotment_status_master')
+                // Get status data
+                $statusData = DB::table('housing_allotment_status_master')
                     ->where('short_code', 'housing_official_reject')
-                    ->value('status_id');
+                    ->first();
 
                 // Insert process flow
                 DB::table('housing_process_flow')->insert([
                     'online_application_id' => $appId,
-                    'status_id' => $statusId,
+                    'status_id' => $statusData->status_id,
                     'created_at' => now(),
                     'uid' => $userId,
-                    'short_code' => 'housing_official_reject'
+                    'short_code' => 'housing_official_reject',
+                    'status_weight' => $statusData->weight,
                 ]);
 
                 // Get flat_id and applicant_official_detail_id
@@ -680,18 +683,19 @@ class AllotmentListController extends Controller
                         'date_of_verified' => now()
                     ]);
 
-                // Get status_id
-                $statusId = DB::table('housing_allotment_status_master')
+                // Get status data
+                $statusData = DB::table('housing_allotment_status_master')
                     ->where('short_code', 'allotment_on_hold')
-                    ->value('status_id');
+                    ->first();
 
                 // Insert process flow
                 DB::table('housing_process_flow')->insert([
                     'online_application_id' => $appId,
-                    'status_id' => $statusId,
+                    'status_id' => $statusData->status_id,
                     'created_at' => now(),
                     'uid' => $userId,
-                    'short_code' => 'allotment_on_hold'
+                    'short_code' => 'allotment_on_hold',
+                    'status_weight' => $statusData->weight,
                 ]);
             }
 
