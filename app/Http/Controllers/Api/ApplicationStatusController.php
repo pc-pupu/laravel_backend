@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Services\ProcessFlowService;
 
 class ApplicationStatusController extends Controller
 {
@@ -365,20 +366,8 @@ class ApplicationStatusController extends Controller
                 ->where('flat_id', $licenseData->flat_id)
                 ->update(['flat_status_id' => 2]); // 2 = Occupied
 
-            // Get status data
-            $statusData = DB::table('housing_allotment_status_master')
-                ->where('short_code', 'flat_possession_taken')
-                ->first();
-
             // Insert into process flow
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $id,
-                'status_id' => $statusData->status_id,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => 'flat_possession_taken',
-                'status_weight' => $statusData->weight,
-            ]);
+            ProcessFlowService::insertProcessFlow($id, 'flat_possession_taken', $uid);
 
             DB::commit();
 
@@ -454,20 +443,8 @@ class ApplicationStatusController extends Controller
                     'date_of_verified' => now(),
                 ]);
 
-            // Get status data
-            $statusData = DB::table('housing_allotment_status_master')
-                ->where('short_code', 'flat_released')
-                ->first();
-
             // Insert into process flow
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $id,
-                'status_id' => $statusData->status_id,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => 'flat_released',
-                'status_weight' => $statusData->weight,
-            ]);
+            ProcessFlowService::insertProcessFlow($id, 'flat_released', $uid);
 
             // Deactivate official detail and free flat
             $officialDetail = DB::table('housing_applicant_official_detail as haod')
@@ -565,20 +542,8 @@ class ApplicationStatusController extends Controller
                 ->where('applicant_official_detail_id', $officialDetailId)
                 ->update(['is_active' => 1]);
 
-            // Get status data
-            $statusData = DB::table('housing_allotment_status_master')
-                ->where('short_code', 'license_extended')
-                ->first();
-
             // Insert into process flow
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $id,
-                'status_id' => $statusData->status_id,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => 'license_extended',
-                'status_weight' => $statusData->weight,
-            ]);
+            ProcessFlowService::insertProcessFlow($id, 'license_extended', $uid);
 
             // Insert extension record
             DB::table('housing_license_offer_letter_extension')->insert([
@@ -700,20 +665,8 @@ class ApplicationStatusController extends Controller
                 ->where('applicant_official_detail_id', $officialDetailId)
                 ->update(['is_active' => 1]);
 
-            // Get status data
-            $statusData = DB::table('housing_allotment_status_master')
-                ->where('short_code', 'offer_letter_extended')
-                ->first();
-
             // Insert into process flow
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $id,
-                'status_id' => $statusData->status_id,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => 'offer_letter_extended',
-                'status_weight' => $statusData->weight,
-            ]);
+            ProcessFlowService::insertProcessFlow($id, 'offer_letter_extended', $uid);
 
             // Insert extension record
             DB::table('housing_license_offer_letter_extension')->insert([

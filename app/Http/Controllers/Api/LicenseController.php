@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\ProcessFlowService;
 
 class LicenseController extends Controller
 {
@@ -92,20 +93,8 @@ class LicenseController extends Controller
                 ->where('online_application_id', $applicationId)
                 ->update(['status' => 'license_generate']);
 
-            // Get status data
-            $statusData = DB::table('housing_allotment_status_master')
-                ->where('short_code', 'license_generate')
-                ->first();
-
             // Insert into process flow
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $applicationId,
-                'status_id' => $statusData->status_id,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => 'license_generate',
-                'status_weight' => $statusData->weight,
-            ]);
+            ProcessFlowService::insertProcessFlow($applicationId, 'license_generate', $uid);
 
             DB::commit();
 
