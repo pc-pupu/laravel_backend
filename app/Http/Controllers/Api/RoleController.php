@@ -145,6 +145,7 @@ class RoleController extends Controller
         // Update basic fields
         $role->name = $request->name;
         $role->guard_name = $request->guard_name ?? $role->guard_name;
+        $role->is_active = $request->has('is_active') ? $request->is_active : $role->is_active;
         $role->save();
 
         // Sync permissions
