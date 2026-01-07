@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Services\ComputerSerialNumberService;
 
 class CommonApplicationController extends Controller
 {
@@ -246,34 +247,7 @@ class CommonApplicationController extends Controller
         // Calculate computer serial number for NA type
         $computerSerialNo = null;
         if ($appType == 'NA' && date('Y-m-d') >= '2025-08-28') {
-            $checkNa = DB::table('housing_online_application')
-                ->whereRaw("substring(application_no, 1, 2) = 'NA'")
-                ->whereNotNull('computer_serial_no')
-                ->exists();
-
-            if (!$checkNa) {
-                $computerSerialNo = '200001';
-            } else {
-                // Get max computer_serial_no (alphanumeric) - sort by numeric part, then alphabetic
-                $maxSerial = DB::table('housing_online_application')
-                    ->whereRaw("(substring(application_no, 1, 2) = 'NA' OR substring(application_no, 1, 2) = 'PA')")
-                    ->whereNotNull('computer_serial_no')
-                    ->orderByRaw("
-                        LPAD(regexp_replace(computer_serial_no, '[^0-9]', '', 'g'), 10, '0') DESC,
-                        regexp_replace(computer_serial_no, '[0-9]', '', 'g') DESC
-                    ")
-                    ->value('computer_serial_no');
-                
-                if ($maxSerial) {
-                    // Extract numeric part and increment
-                    $numPart = preg_replace('/[^0-9]/', '', $maxSerial);
-                    $alphaPart = preg_replace('/[0-9]/', '', $maxSerial);
-                    $nextNum = (int)$numPart + 1;
-                    $computerSerialNo = $nextNum . $alphaPart;
-                } else {
-                    $computerSerialNo = '200001';
-                }
-            }
+            $computerSerialNo = ComputerSerialNumberService::generateNextSerialNumber();
         }
 
         $onlineAppData = [

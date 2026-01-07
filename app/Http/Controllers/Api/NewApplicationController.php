@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use App\Services\ProcessFlowService;
+use App\Services\ComputerSerialNumberService;
 
 class NewApplicationController extends Controller
 {
@@ -183,18 +185,9 @@ class NewApplicationController extends Controller
 
             // Step 3: Save estate preferences
             $this->saveEstatePreferences($onlineApplicationId, $request->all());
-            $getStatusData = DB::table('housing_allotment_status_master')
-                ->where('short_code', 'applied')
-                ->first();
-
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $onlineApplicationId,
-                'status_id' => $getStatusData->status_id,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => 'applied',
-                'status_weight' => $getStatusData->weight,
-            ]);
+            
+            // Insert into process flow
+            ProcessFlowService::insertProcessFlow($onlineApplicationId, 'applied', $uid);
 
 
             // Step 4: Handle document upload
@@ -718,34 +711,7 @@ class NewApplicationController extends Controller
 
         $computerSerialNo = null;
         if ($appType == 'NA' && date('Y-m-d') >= '2025-08-28') {
-            $checkNa = DB::table('housing_online_application')
-                ->whereRaw("substring(application_no, 1, 2) = 'NA'")
-                ->whereNotNull('computer_serial_no')
-                ->exists();
-
-            if (!$checkNa) {
-                $computerSerialNo = '200001';
-            } else {
-                // Get max computer_serial_no (alphanumeric) - sort by numeric part, then alphabetic
-                $maxSerial = DB::table('housing_online_application')
-                    ->whereRaw("(substring(application_no, 1, 2) = 'NA' OR substring(application_no, 1, 2) = 'PA')")
-                    ->whereNotNull('computer_serial_no')
-                    ->orderByRaw("
-                        LPAD(regexp_replace(computer_serial_no, '[^0-9]', '', 'g'), 10, '0') DESC,
-                        regexp_replace(computer_serial_no, '[0-9]', '', 'g') DESC
-                    ")
-                    ->value('computer_serial_no');
-                
-                if ($maxSerial) {
-                    // Extract numeric part and increment
-                    $numPart = preg_replace('/[^0-9]/', '', $maxSerial);
-                    $alphaPart = preg_replace('/[0-9]/', '', $maxSerial);
-                    $nextNum = (int)$numPart + 1;
-                    $computerSerialNo = $nextNum . $alphaPart;
-                } else {
-                    $computerSerialNo = '200001';
-                }
-            }
+            $computerSerialNo = ComputerSerialNumberService::generateNextSerialNumber();
         }
 
         $onlineAppData = [

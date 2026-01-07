@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Services\NotificationService;
+use App\Services\ProcessFlowService;
+use App\Services\ApplicationService;
 
 class ApplicationListController extends Controller
 {
@@ -89,14 +91,7 @@ class ApplicationListController extends Controller
             $verifiedStatus = $this->getVerifiedStatus($status, $userRole);
             $rejectedStatus = $this->getRejectedStatus($status, $userRole);
 
-            \Log::info('Application Counts', [
-                'status' => $status,
-                'actionStatus' => $actionStatus,
-                'verifiedStatus' => $verifiedStatus,
-                'rejectedStatus' => $rejectedStatus,
-                'userRole' => $userRole,
-                'ddoCode' => $ddoCode,
-            ]);
+            
            
             $counts = [
                 'total' => $this->getApplicationCount($entity, $actionStatus, $userRole, $ddoCode),
@@ -228,13 +223,8 @@ class ApplicationListController extends Controller
 
 
             // If rejected, deactivate official detail and free flat
-            if (in_array($newStatus, [
-                'ddo_rejected_1', 'ddo_rejected_2',
-                'housing_sup_reject_1', 'housing_sup_reject_2',
-                'housing_approver_reject_1', 'housing_approver_reject_2',
-                'housing_official_reject'
-            ])) {
-                $this->handleRejection($id);
+            if (ApplicationService::isRejectionStatus($newStatus)) {
+                ApplicationService::handleRejection($id);
 
                 // Update application status
                 DB::table('housing_online_application')
@@ -244,20 +234,8 @@ class ApplicationListController extends Controller
                         'date_of_verified' => now(),
                     ]);
 
-                // Get status data
-                $statusData = DB::table('housing_allotment_status_master')
-                    ->where('short_code', $newStatus)
-                    ->first();
-
                 // Insert into process flow
-                DB::table('housing_process_flow')->insert([
-                    'online_application_id' => $id,
-                    'status_id' => $statusData->status_id,
-                    'created_at' => now(),
-                    'uid' => $uid,
-                    'short_code' => $newStatus,
-                    'status_weight' => $statusData->weight,
-                ]);
+                ProcessFlowService::insertProcessFlow($id, $newStatus, $uid);
             }
 
             DB::commit();
@@ -769,37 +747,6 @@ class ApplicationListController extends Controller
         return null;
     }
 
-    /**
-     * Handle rejection (deactivate official detail, free flat)
-     */
-    private function handleRejection($applicationId)
-    {
-        $officialDetail = DB::table('housing_applicant_official_detail as haod')
-            ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
-            ->leftJoin('housing_flat_occupant as hfo', 'hfo.online_application_id', '=', 'hoa.online_application_id')
-            ->where('hoa.online_application_id', $applicationId)
-            ->select('haod.applicant_official_detail_id', 'hfo.flat_id')
-            ->first();
-
-            \Log::info('Handling Rejection', [
-                'application_id' => $applicationId,
-                'official_detail' => $officialDetail,
-            ]);
-
-        if ($officialDetail) {
-            // Deactivate official detail
-            DB::table('housing_applicant_official_detail')
-                ->where('applicant_official_detail_id', $officialDetail->applicant_official_detail_id)
-                ->update(['is_active' => 0]);
-
-            // Free the flat if allocated
-            if ($officialDetail->flat_id) {
-                DB::table('housing_flat')
-                    ->where('flat_id', $officialDetail->flat_id)
-                    ->update(['flat_status_id' => 1]); // 1 = Available
-            }
-        }
-    }
 
     /**
      * Send rejection notification
@@ -878,11 +825,12 @@ class ApplicationListController extends Controller
         try {
             
             // Get verified and rejected statuses based on user role and current status
+            $actionStatus = $this->getActionStatus($status, $userRole);
             $verifiedStatus = $this->getVerifiedStatus($status, $userRole);
             $rejectedStatus = $this->getRejectedStatus($status, $userRole);
             
             // Get counts
-            $actionCount = $this->getApplicationCount($entity, $status, $userRole, $ddoCode);
+            $actionCount = $actionStatus ? $this->getApplicationCount($entity, $actionStatus, $userRole, $ddoCode) : 0;
             $verifiedCount = $verifiedStatus ? $this->getApplicationCountForVerifiedReject($entity, $verifiedStatus, $userRole, $ddoCode) : 0;
             $rejectedCount = $rejectedStatus ? $this->getApplicationCountForVerifiedReject($entity, $rejectedStatus, $userRole, $ddoCode) : 0;
 
@@ -1028,21 +976,6 @@ class ApplicationListController extends Controller
                 ], 422);
             }
 
-            /* Added by Subham dt.02-01-2025 */
-            // Get status weight
-            $statusWeight = DB::table('housing_allotment_status_master')
-                ->where('short_code', $statusNew)
-                ->value('weight');
-
-            if(!$statusWeight) {
-                DB::rollBack();
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Invalid status',
-                ], 422);
-            }
-            /* Ended */
-
             // Update application status
             DB::table('housing_online_application')
                 ->where('online_application_id', $onlineApplicationId)
@@ -1052,14 +985,7 @@ class ApplicationListController extends Controller
                 ]);
 
             // Insert into process flow
-            DB::table('housing_process_flow')->insert([
-                'online_application_id' => $onlineApplicationId,
-                'status_id' => $statusId,
-                'created_at' => now(),
-                'uid' => $uid,
-                'short_code' => $statusNew,
-                'status_weight' => $statusWeight, // Added by Subham dt.02-01-2025
-            ]);
+            ProcessFlowService::insertProcessFlow($onlineApplicationId, $statusNew, $uid);
 
             DB::commit();
 

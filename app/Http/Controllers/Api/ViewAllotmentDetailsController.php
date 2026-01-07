@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Helpers\UrlEncryptionHelper;
+use App\Services\ProcessFlowService;
 
 class ViewAllotmentDetailsController extends Controller
 {
@@ -169,20 +170,8 @@ class ViewAllotmentDetailsController extends Controller
                     ->where('online_application_id', $onlineApplicationId)
                     ->update(['status' => 'applicant_reject']);
 
-                // Get status data
-                $statusData = DB::table('housing_allotment_status_master')
-                    ->where('short_code', 'applicant_reject')
-                    ->first();
-
                 // Insert process flow
-                DB::table('housing_process_flow')->insert([
-                    'online_application_id' => $onlineApplicationId,
-                    'status_id' => $statusData->status_id,
-                    'created_at' => now(),
-                    'uid' => $userId,
-                    'short_code' => 'applicant_reject',
-                    'status_weight' => $statusData->weight,
-                ]);
+                ProcessFlowService::insertProcessFlow($onlineApplicationId, 'applicant_reject', $userId);
 
                 // Get flat_id and applicant_official_detail_id
                 $data = DB::table('housing_applicant_official_detail as haod')
