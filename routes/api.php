@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\EstateTreasuryMappingHelperController;
 use App\Http\Controllers\Api\AuthApiServiceController;
 use App\Http\Controllers\Api\CommonApplicationController;
 use App\Http\Controllers\Api\NewApplicationController;
+use App\Http\Controllers\Api\RheAllotmentController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
@@ -94,6 +95,11 @@ Route::get('/view-allotment-letter/flat-types', [\App\Http\Controllers\Api\ViewA
 Route::get('/view-allotment-letter/list', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'getAllotmentLetterList']);
 Route::post('/view-allotment-letter/allot', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'allotApplicant']);
 Route::post('/view-allotment-letter/cancel', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'cancelAllotment']);
+
+// RHE Allotment APIs
+Route::get('/rhe-allotment/flat-types', [RheAllotmentController::class, 'getFlatTypes']);
+Route::get('/rhe-allotment/show-vacancy', [RheAllotmentController::class, 'showVacancy']);
+Route::post('/rhe-allotment/process', [RheAllotmentController::class, 'processAllotment']);
 
 // Protected routes (continued)
 Route::middleware('auth:sanctum')->group(function () {
@@ -263,4 +269,3 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
- 

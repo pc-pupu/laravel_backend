@@ -332,9 +332,9 @@ class AllotmentListController extends Controller
      */
     public function getAllotmentDetail($encryptedAppId)
     {
+        $appId = UrlEncryptionHelper::decryptUrl($encryptedAppId);
         try {
-            $appId = UrlEncryptionHelper::decrypt($encryptedAppId);
-
+            
             if (!is_numeric($appId) || $appId <= 0) {
                 return response()->json([
                     'status' => 'error',

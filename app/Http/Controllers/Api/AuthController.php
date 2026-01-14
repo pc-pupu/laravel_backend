@@ -61,7 +61,7 @@ class AuthController extends Controller
         $user_role = DB::table('user_role')
             ->where('uid', $user->uid)
             ->select('rid')->first();
-            \Log::info('User Role', ['role' => $user_role]);
+            // \Log::info('User Role', ['role' => $user_role]);
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',

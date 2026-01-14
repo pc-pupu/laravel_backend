@@ -97,7 +97,7 @@ class ExistingApplicantHelperController extends Controller
 
         if (!empty($rheFlatType)) {
             if ($rheFlatType == 'A+') {
-                $table = 'housing_roasterAplus_master';
+                $table = 'housing_roasteraplus_master';
             } elseif ($rheFlatType == 'A' || $rheFlatType == 'B') {
                 $table = 'housing_roaster4ab_master';
             } else {
