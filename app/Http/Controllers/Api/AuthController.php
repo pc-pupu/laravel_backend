@@ -14,6 +14,7 @@ class AuthController extends Controller
     // Login API
     public function login(Request $request)
     {
+        \Log::info('Login Attempt', ['name' => $request->name]);
         $credentials = $request->validate([
             'name' => 'required|string',
             'password' => 'required|string',
@@ -47,7 +48,9 @@ class AuthController extends Controller
         // Password check 
         $isPasswordCorrect = Hash::check($request->password, $user->password);
 
+
         if (!$isPasswordCorrect) {
+            \Log::info('invalid password', ['pass' => $isPasswordCorrect]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Invalid password'
@@ -61,7 +64,8 @@ class AuthController extends Controller
         $user_role = DB::table('user_role')
             ->where('uid', $user->uid)
             ->select('rid')->first();
-            // \Log::info('User Role', ['role' => $user_role]);
+             \Log::info('User Role', ['role' => $user_role]);
+             \Log::info('Login Successful', ['user' => $user->uid, 'token' => $token]);
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',

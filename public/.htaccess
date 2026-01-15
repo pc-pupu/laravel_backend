@@ -5,6 +5,13 @@
 
     RewriteEngine On
 
+    # Disable directory listing
+    Options -Indexes
+
+    # Block dangerous HTTP methods
+    RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK|CONNECT|DELETE) [NC]
+    RewriteRule ^(.*)$ - [F,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -22,4 +29,26 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Remove server information
+    Header unset Server
+    Header unset X-Powered-By
+    
+    # Prevent clickjacking
+    Header always set X-Frame-Options "SAMEORIGIN"
+    
+    # Prevent MIME type sniffing
+    Header always set X-Content-Type-Options "nosniff"
+    
+    # Enable XSS protection
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # Referrer policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Disable directory listing
+    Header set X-Robots-Tag "noindex, nofollow"
 </IfModule>
