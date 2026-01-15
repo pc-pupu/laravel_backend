@@ -188,7 +188,7 @@ class DashboardController extends Controller
                 ->where('ddo_code', $username)
                 ->where('is_active', 'Y')
                 ->first();
-
+            \Log::info('DDO Mapping', ['mapping' => $ddoMapping]);
             if (!empty($ddoMapping)) {
                 $hrmsData = $this->getHRMSUserDataBackend($ddoMapping->hrms_id);
                 $output['user_info'] = [
@@ -496,51 +496,12 @@ class DashboardController extends Controller
      */
     public function getHRMSUserDataBackend($hrmsId)
     {
-        // ========== LOCAL DEVELOPMENT - DUMMY DATA ==========
-        // if (config('app.env') === 'local' || config('app.env') === 'development') {
-        //     return [
-        //         'hrmsId' => $hrmsId,
-        //         'applicantName' => 'PRADIP KUMAR HANSDA',
-        //         'dateOfBirth' => '15/04/1980',
-        //         'dateOfJoining' => '10/06/2005',
-        //         'dateOfRetirement' => '30/04/2040',
-        //         'mobileNo' => '7278587028',
-        //         'gender' => 'Male',
-        //         'applicantDesignation' => 'Upper Division Assistant',
-        //         'officeName' => 'PANCHAYATS & RURAL DEVELOPMENT DEPARTMENT',
-        //         'ddoId' => 'CAFPNA001',
-        //         'permanentStreet' => 'Flat No R-5/1,Bidhan Abasan',
-        //         'permanentCityTownVillage' => 'F B Block,Sector-III',
-        //         'permanentPostOffice' => 'Bidhannagar',
-        //         'permanentPincode' => '700106',
-        //         'permanentDistrictCode' => '5',
-        //         'permanentPresentSame' => 'Y',
-        //         'presentStreet' => 'Flat No R-5/1,Bidhan Abasan',
-        //         'presentCityTownVillage' => 'F B Block,Sector-III',
-        //         'presentPostOffice' => 'Bidhannagar',
-        //         'presentPincode' => '700106',
-        //         'presentDistrictCode' => '5',
-        //         'guardianName' => 'Sri Nabin Chandra Hansda',
-        //         'applicantHeadquarter' => 'L1-DEPARTMENT',
-        //         'gradePay' => '3600',
-        //         'payBandId' => '3',
-        //         'payScaleId' => '',
-        //         'applicantPostingPlace' => 'JOINT ADMINISTRATIVE BUILDING, 6TH - 10TH FLOOR, BLOCK HC-7 SECTOR 3 Salt Lake City BIDHANNAGAR IB MARKET SO Bidhannagar South 24 Parganas( North ) West Bengal',
-        //         'payInThePayBand' => '10600',
-        //         'officeStreetCharacter' => 'JOINT ADMINISTRATIVE BUILDING, 6TH - 10TH FLOOR, BLOCK HC-7 SECTOR 3 Salt Lake City BIDHANNAGAR IB MARKET SO Bidhannagar South 24 Parganas( North ) West Bengal',
-        //         'officeCityTownVillage' => 'Salt Lake City',
-        //         'officePostOffice' => 'BIDHANNAGAR IB MARKET SO',
-        //         'officePinCode' => '700106',
-        //         'officeDistrict' => '5',
-        //         'officePhoneNo' => '',
-        //         'email' => '',
-        //     ];
-        // }
-        // ========== END LOCAL DEVELOPMENT ==========
+        
 
         // ========== LIVE PRODUCTION - HRMS API CALL ==========
         try {
             $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
+            \Log::info('HRMS API URL', ['url' => $hrmsApiUrl]);
             // $hrmsApiUrl = config('services.hrms.api_url', 'https://172.17.2.45/hrms-External/housing/fetchEmployeeDetails'); // Internal IP (for Live)
             $requestData = [
                 'req' => [

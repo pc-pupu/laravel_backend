@@ -620,5 +620,94 @@ class AuthApiServiceController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get Test Info - Fetch HRMS user data for testing (matching Drupal get_test_info)
+     * GET /api/get-test-info/{hrmsId?}
+     */
+    public function getTestInfo($hrmsId = '')
+    {
+        $hrmsId = trim($hrmsId);
+        
+        if (empty($hrmsId)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'HRMS ID is required',
+                'status_code' => 400
+            ], 400);
+        }
+
+        try {
+            // Fetch HRMS user data (same logic as getHRMSUserDataBackend)
+            $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
+            $requestData = [
+                'req' => [
+                    'hrmsId' => $hrmsId
+                ]
+            ];
+            
+            $response = \Illuminate\Support\Facades\Http::timeout(30)
+                ->withOptions([
+                    'verify' => false,
+                ])
+                ->post($hrmsApiUrl, $requestData);
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'HRMS API Error: ' . $response->status(),
+                    'response' => $response->body(),
+                    'status_code' => $response->status()
+                ], $response->status());
+            }
+
+            $responseData = $response->json();
+
+            if (!isset($responseData['resp']['status']) || 
+                strtolower($responseData['resp']['status']) !== 's' ||
+                empty($responseData['resp']['data'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User data Fetch error.',
+                    'response' => $responseData,
+                    'status_code' => 400
+                ], 400);
+            }
+
+            // Decrypt the data
+            $encryptedData = $responseData['resp']['data'];
+            $decryptedData = AuthEncryptionHelper::decrypt($encryptedData);
+            $userDataArray = json_decode($decryptedData, true);
+            
+            if (empty($userDataArray) || !is_array($userDataArray) || empty($userDataArray[0])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'HRMS Data Decryption Error',
+                    'decrypted_data' => $decryptedData,
+                    'status_code' => 400
+                ], 400);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $userDataArray[0],
+                'raw_response' => $responseData,
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Get Test Info Error', [
+                'error' => $e->getMessage(),
+                'hrms_id' => $hrmsId,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error: ' . $e->getMessage(),
+                'status_code' => 500
+            ], 500);
+        }
+    }
 }
 

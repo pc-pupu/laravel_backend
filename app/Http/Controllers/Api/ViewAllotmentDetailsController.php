@@ -16,10 +16,11 @@ class ViewAllotmentDetailsController extends Controller
      */
     public function getAllotmentDetails(Request $request)
     {
+       
         try {
             $uid = $request->get('uid');
             $onlineApplicationId = $request->get('online_application_id');
-
+            
             $query = DB::table('housing_applicant_official_detail as haod')
                 ->join('housing_applicant as ha', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
                 ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
@@ -50,11 +51,14 @@ class ViewAllotmentDetailsController extends Controller
                 );
 
             // Allowed statuses
+            // $statusArr = [
+            //     'housing_official_approved', 'allotted', 'applicant_acceptance',
+            //     'applicant_reject', 'ddo_verified_2', 'ddo_reject_2',
+            //     'housing_sup_approved_2', 'housing_sup_reject_2', 'license_generate',
+            //     'offer_letter_extended', 'flat_possession_taken'
+            // ];
             $statusArr = [
-                'housing_official_approved', 'allotted', 'applicant_acceptance',
-                'applicant_reject', 'ddo_verified_2', 'ddo_reject_2',
-                'housing_sup_approved_2', 'housing_sup_reject_2', 'license_generate',
-                'offer_letter_extended', 'flat_possession_taken'
+                'housing_official_approved'
             ];
 
             if ($onlineApplicationId) {
@@ -66,7 +70,6 @@ class ViewAllotmentDetailsController extends Controller
             }
 
             $allotment = $query->first();
-
             if (!$allotment) {
                 return response()->json([
                     'status' => 'error',
@@ -219,6 +222,75 @@ class ViewAllotmentDetailsController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update status',
+                'status_code' => 500
+            ], 500);
+        }
+    }
+
+    /**
+     * Submit declaration acceptance
+     * POST /api/view-allotment-details/submit-declaration
+     */
+    public function submitDeclaration(Request $request)
+    {
+        try {
+            $request->validate([
+                'online_application_id' => 'required|integer',
+                'declaration_content' => 'required|string',
+                'uid' => 'required|integer'
+            ]);
+
+            $onlineApplicationId = $request->online_application_id;
+            $declarationContent = $request->declaration_content;
+            $userId = $request->uid;
+
+            DB::beginTransaction();
+
+            // Check if declaration already exists
+            $existingDeclaration = DB::table('housing_declration')
+                ->where('online_application_id', $onlineApplicationId)
+                ->first();
+
+            $declarationData = [
+                'uid' => $userId,
+                'online_application_id' => $onlineApplicationId,
+                'declration_content' => $declarationContent,
+                'declration_date' => now(),
+            ];
+
+            if ($existingDeclaration) {
+                // Update existing declaration
+                DB::table('housing_declration')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->update($declarationData);
+            } else {
+                // Insert new declaration
+                $declarationData['created_at'] = now();
+                DB::table('housing_declration')
+                    ->insert($declarationData);
+            }
+
+            // Note: The actual status update to 'applicant_acceptance' is commented out in Drupal
+            // So we don't update it here either (matching Drupal behavior)
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Declaration accepted successfully.',
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Submit Declaration Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to submit declaration',
                 'status_code' => 500
             ], 500);
         }

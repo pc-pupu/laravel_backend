@@ -162,16 +162,17 @@ class AllotmentListController extends Controller
             }
 
             // Status conditions
-            $statuses = [
-                'allotted', 'housing_sup_approved_1', 'housing_sup_reject_1',
-                'applicant_acceptance', 'applicant_reject', 'ddo_verified_2',
-                'ddo_reject_2', 'housing_sup_approved_2', 'housing_sup_reject_2',
-                'offer_letter_cancel', 'offer_letter_extended', 'license_generate',
-                'license_cancel', 'flat_possession_taken', 'housingapprover_approved_1',
-                'housing_approver_reject_1', 'housing_official_approved', 'housing_official_reject',
-                'housingapprover_approved_2', 'housing_approver_reject_2', 'license_extended',
-                'flat_released'
-            ];
+            // $statuses = [
+            //     'allotted', 'housing_sup_approved_1', 'housing_sup_reject_1',
+            //     'applicant_acceptance', 'applicant_reject', 'ddo_verified_2',
+            //     'ddo_reject_2', 'housing_sup_approved_2', 'housing_sup_reject_2',
+            //     'offer_letter_cancel', 'offer_letter_extended', 'license_generate',
+            //     'license_cancel', 'flat_possession_taken', 'housingapprover_approved_1',
+            //     'housing_approver_reject_1', 'housing_official_approved', 'housing_official_reject',
+            //     'housingapprover_approved_2', 'housing_approver_reject_2', 'license_extended',
+            //     'flat_released'
+            // ];
+            $statuses = ['allotted', 'allotment_on_hold'];
             $query->whereIn('hoa.status', $statuses);
 
             // Select fields
@@ -470,6 +471,7 @@ class AllotmentListController extends Controller
      */
     public function approveAllotments(Request $request)
     {
+        
         try {
             $request->validate([
                 'online_application_ids' => 'required|array',
@@ -481,7 +483,7 @@ class AllotmentListController extends Controller
             $userId = $user->uid ?? $user->id ?? null;
 
             DB::beginTransaction();
-
+            
             foreach ($onlineApplicationIds as $appId) {
                 // Update online application status
                 DB::table('housing_online_application')
@@ -521,12 +523,11 @@ class AllotmentListController extends Controller
                     Government of West Bengal
                     </html></body>';
 
-                    $this->notificationService->sendMail($applicant->email, $subject, $message, 'RHE');
+                    // $this->notificationService->sendMail($applicant->email, $subject, $message, 'RHE');
 
-                    // Send SMS
-                    $smsMessage = 'Dear ' . $applicant->applicant_name . ', your application for RHE has been approved and a flat has been allotted to you. Kindly visit the portal to view allotment details and complete further necessary formalities. -Dept. of Housing, GoWB';
-                    $templateId = '1107175508647688715';
-                    $this->notificationService->sendSms($applicant->mobile_no, $smsMessage, $templateId);
+                    // $smsMessage = 'Dear ' . $applicant->applicant_name . ', your application for RHE has been approved and a flat has been allotted to you. Kindly visit the portal to view allotment details and complete further necessary formalities. -Dept. of Housing, GoWB';
+                    // $templateId = '1107175508647688715';
+                    // $this->notificationService->sendSms($applicant->mobile_no, $smsMessage, $templateId);
                 }
             }
 

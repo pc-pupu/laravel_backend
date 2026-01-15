@@ -28,12 +28,18 @@ Route::get('/cms/{param}', [CmsContentPublicController::class, 'show']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/generate-sso-token', [AuthController::class, 'generateSsoToken']);
 
+// Document download (requires authentication)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/document/download', [\App\Http\Controllers\Api\DocumentController::class, 'download']);
+});
+
 // Auth API Service (HRMS/DDO Login) - Public endpoints
 Route::post('/login-hrms', [AuthApiServiceController::class, 'applicantLogin']);
 Route::post('/login-ddo', [AuthApiServiceController::class, 'ddoLogin']);
 Route::post('/validate-sso-token', [AuthApiServiceController::class, 'validateSsoToken']);
 Route::post('/hrms-login-manual', [AuthApiServiceController::class, 'hrmsLoginManual']);
 Route::get('/hrms-log-data/{hrms_id}', [AuthApiServiceController::class, 'getHrmsLogData']);
+Route::get('/get-test-info/{hrmsId?}', [AuthApiServiceController::class, 'getTestInfo']);
 
 // User Tagging APIs
 Route::get('/user-tagging/check-submission/{uid}', [\App\Http\Controllers\Api\UserTaggingController::class, 'checkSubmission']);
@@ -89,6 +95,7 @@ Route::post('/generate-allotment-letter/generate', [\App\Http\Controllers\Api\Ge
 Route::get('/view-allotment-details', [\App\Http\Controllers\Api\ViewAllotmentDetailsController::class, 'getAllotmentDetails']);
 Route::get('/view-allotment-details/documents', [\App\Http\Controllers\Api\ViewAllotmentDetailsController::class, 'getUploadedDocuments']);
 Route::post('/view-allotment-details/update-status', [\App\Http\Controllers\Api\ViewAllotmentDetailsController::class, 'updateStatus']);
+Route::post('/view-allotment-details/submit-declaration', [\App\Http\Controllers\Api\ViewAllotmentDetailsController::class, 'submitDeclaration']);
 
 // View Allotment Letter APIs
 Route::get('/view-allotment-letter/flat-types', [\App\Http\Controllers\Api\ViewAllotmentLetterController::class, 'getFlatTypes']);
