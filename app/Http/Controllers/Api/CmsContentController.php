@@ -123,6 +123,7 @@ class CmsContentController extends Controller
     {
         $content = housingCms::find($id);
 
+        \Log::info('Updating CMS Content Request', ['id' => $id, 'request' => $request->all()]);
         if (!$content) {
             return response()->json([
                 'status'  => 'error',
@@ -141,7 +142,8 @@ class CmsContentController extends Controller
         }
 
         $data = $this->mapPayload($validator->validated(), $content);
-
+        $data['updated_date'] = Carbon::now()->format('Y-m-d H:i:s');
+        
         if ($request->hasFile('content_file_upload')) {
             try {
                 $this->removeExistingFile($content);
@@ -153,8 +155,13 @@ class CmsContentController extends Controller
                 ], 422);
             }
         }
-
-        $content->update($data);
+        try {
+            $content->update($data);
+            \Log::info('Updating CMS Content', ['data' => $data]);
+        } catch (\Exception $e) {
+            \Log::info('Error Updating CMS Content', ['error' => $e->getMessage()]);
+        }
+        
 
         return response()->json([
             'status'  => 'success',

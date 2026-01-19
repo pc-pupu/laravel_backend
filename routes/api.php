@@ -150,7 +150,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('cms-content/{id}', [CmsContentController::class, 'update']);
         Route::delete('cms-content/{id}', [CmsContentController::class, 'destroy']);
 
-        
+        // DDO Management
+        Route::get('ddo/by-application/{online_application_id}', [\App\Http\Controllers\Api\DdoController::class, 'getDdoByApplication']);
+        Route::post('ddo/update-change', [\App\Http\Controllers\Api\DdoController::class, 'updateDdoChange']);
+        Route::get('ddo/treasury-by-district/{district_code}', [\App\Http\Controllers\Api\DdoController::class, 'getTreasuryByDistrict']);
+        Route::get('ddo', [\App\Http\Controllers\Api\DdoController::class, 'index']);
+        Route::post('ddo', [\App\Http\Controllers\Api\DdoController::class, 'store']);
+        Route::get('ddo/{id}', [\App\Http\Controllers\Api\DdoController::class, 'show']);
+        Route::put('ddo/{id}', [\App\Http\Controllers\Api\DdoController::class, 'update']);
+        Route::delete('ddo/{id}', [\App\Http\Controllers\Api\DdoController::class, 'destroy']);
 
         // Existing Applicant (Legacy/Physical Applicants)
         Route::get('existing-applicants', [ExistingApplicantController::class, 'index']);

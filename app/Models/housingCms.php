@@ -24,7 +24,8 @@ class housingCms extends Model
         'url',
         'file_name',
         'file_path',
-        'created_date'
+        'created_date',
+        'updated_date',
         // add more columns as needed
     ];
 }
