@@ -321,5 +321,102 @@ class LicenseController extends Controller
             'application_id' => $applicationId,
         ]);
     }
+
+    /**
+     * Download license PDF
+     * GET /api/license/download-pdf/{online_application_id}
+     */
+    public function downloadPdf(Request $request, $onlineApplicationId)
+    {
+        try {
+            // Fetch license details
+            $licenseDetails = DB::table('housing_occupant_license as hol')
+                ->join('housing_license_application as hla', 'hla.license_application_id', '=', 'hol.license_application_id')
+                ->join('housing_flat_occupant as hfo', 'hfo.flat_occupant_id', '=', 'hol.flat_occupant_id')
+                ->join('housing_online_application as hoa', 'hoa.online_application_id', '=', 'hla.online_application_id')
+                ->join('housing_applicant_official_detail as haod', 'haod.applicant_official_detail_id', '=', 'hoa.applicant_official_detail_id')
+                ->join('housing_applicant as ha', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
+                ->join('housing_flat as hf', 'hf.flat_id', '=', 'hfo.flat_id')
+                ->join('housing_estate as he', 'he.estate_id', '=', 'hf.estate_id')
+                ->leftJoin('housing_district as hd', 'hd.district_code', '=', 'he.district_code')
+                ->leftJoin('housing_ddo as hddo', 'hddo.ddo_id', '=', 'haod.ddo_id')
+                ->where('hoa.online_application_id', $onlineApplicationId)
+                ->select(
+                    'hol.license_no',
+                    'hol.license_issue_date',
+                    'hol.license_expiry_date',
+                    'hla.type_of_application',
+                    'hla.allotment_district',
+                    'hla.allotment_estate',
+                    'hla.allotment_address',
+                    'ha.applicant_name',
+                    'ha.gender',
+                    'haod.applicant_designation',
+                    'haod.date_of_retirement',
+                    'haod.office_name',
+                    'hddo.ddo_designation',
+                    'hddo.ddo_address',
+                    'hf.flat_no'
+                )
+                ->first();
+
+            if (!$licenseDetails) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'License details not found',
+                    'status_code' => 404
+                ], 404);
+            }
+
+            // Determine gender prefix
+            $genderPrefix = ($licenseDetails->gender == 'M') ? 'Sri.' : (($licenseDetails->gender == 'F') ? 'Smt.' : '');
+
+            // Format dates
+            $issueDate = date('d/m/Y', strtotime($licenseDetails->license_issue_date));
+            $expiryDate = date('d/m/Y', strtotime($licenseDetails->license_expiry_date));
+            $retirementDate = $licenseDetails->date_of_retirement 
+                ? date('d/m/Y', strtotime($licenseDetails->date_of_retirement)) 
+                : '';
+
+            // Generate PDF HTML content (matching Drupal structure)
+            // For now, return JSON with license details - PDF generation can be handled by frontend
+            // or we can use a simple HTML response that can be printed as PDF
+            
+            // Return license data for PDF generation
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'license_no' => $licenseDetails->license_no,
+                    'license_issue_date' => $issueDate,
+                    'license_expiry_date' => $expiryDate,
+                    'applicant_name' => $licenseDetails->applicant_name,
+                    'applicant_designation' => $licenseDetails->applicant_designation,
+                    'gender_prefix' => $genderPrefix,
+                    'flat_no' => $licenseDetails->flat_no,
+                    'allotment_estate' => $licenseDetails->allotment_estate,
+                    'allotment_address' => $licenseDetails->allotment_address,
+                    'allotment_district' => $licenseDetails->allotment_district,
+                    'date_of_retirement' => $retirementDate,
+                    'office_name' => $licenseDetails->office_name,
+                    'ddo_designation' => $licenseDetails->ddo_designation,
+                    'ddo_address' => $licenseDetails->ddo_address,
+                ],
+                'status_code' => 200
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Download License PDF Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'online_application_id' => $onlineApplicationId
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to generate license PDF',
+                'status_code' => 500
+            ], 500);
+        }
+    }
 }
 

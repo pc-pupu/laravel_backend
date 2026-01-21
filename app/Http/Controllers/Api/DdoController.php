@@ -128,8 +128,8 @@ class DdoController extends Controller
             $request->validate([
                 'online_application_id' => 'required|integer',
                 'old_ddo_id' => 'required|integer',
-                'current_ddo_id' => 'required|integer',
-                'applicant_official_detail_id' => 'required|integer',
+                'current_ddo_id' => 'nullable|integer',
+                'applicant_official_detail_id' => 'nullable|integer',
                 'old_ddo_code' => 'required|string',
                 'current_ddo_code' => 'required|string',
                 'uid' => 'required|integer',
@@ -138,8 +138,8 @@ class DdoController extends Controller
 
             $onlineApplicationId = $request->online_application_id;
             $oldDdoId = $request->old_ddo_id;
-            $currentDdoId = $request->current_ddo_id;
-            $applicantOfficialDetailId = $request->applicant_official_detail_id;
+            $currentDdoId = $request->current_ddo_id ?? 0; // Default to 0 if not provided (when DDO not found)
+            $applicantOfficialDetailId = $request->applicant_official_detail_id ?? null;
             $oldDdoCode = $request->old_ddo_code;
             $currentDdoCode = $request->current_ddo_code;
             $userId = $request->uid;
@@ -149,68 +149,139 @@ class DdoController extends Controller
 
             DB::beginTransaction();
 
-            // If DDO codes are the same, just return success
+            // Check if DDO codes are the same
             if ($currentDdoCodeClean == $oldDdoCode) {
+                // Even when codes are the same, update declaration and status (matching Drupal behavior)
+                // Update declaration table
+                DB::table('housing_declration')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->where('uid', $userId)
+                    ->update([
+                        'ddo_change_date' => now(),
+                        'ddo_id_from' => $oldDdoId,
+                        'ddo_id_to' => $currentDdoId,
+                    ]);
+
+                // Update flat occupant status to Accept
+                DB::table('housing_flat_occupant')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->update(['accept_reject_status' => 'Accept']);
+
+                // Update online application status to applicant_acceptance
+                DB::table('housing_online_application')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->update(['status' => 'applicant_acceptance']);
+
+                // Insert process flow
+                $statusId = $this->getStatusId('applicant_acceptance');
+                if ($statusId) {
+                    // Check if process flow already exists to avoid duplicates
+                    $existingFlow = DB::table('housing_process_flow')
+                        ->where('online_application_id', $onlineApplicationId)
+                        ->where('short_code', 'applicant_acceptance')
+                        ->first();
+                    
+                    if (!$existingFlow) {
+                        DB::table('housing_process_flow')->insert([
+                            'online_application_id' => $onlineApplicationId,
+                            'status_id' => $statusId,
+                            'created_at' => now(),
+                            'uid' => $userId,
+                            'short_code' => 'applicant_acceptance'
+                        ]);
+                    }
+                }
+
                 DB::commit();
+
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'DDO details updated successfully.',
+                    'message' => 'DDO details updated successfully and You have accepted the terms and conditions stated in the Declaration before Competent Authority.',
+                    'status_code' => 200
+                ], 200);
+            } else {
+                // DDO codes are different - update applicant official detail as well
+                // Only update if current_ddo_id is valid (not 0) and applicant_official_detail_id is provided
+                if ($currentDdoId > 0 && $applicantOfficialDetailId) {
+                    // Update DDO in applicant official detail
+                    $updated = DB::table('housing_applicant_official_detail')
+                        ->where('applicant_official_detail_id', $applicantOfficialDetailId)
+                        ->where('uid', $userId)
+                        ->where('ddo_id', $oldDdoId)
+                        ->update(['ddo_id' => $currentDdoId]);
+                    
+                    // Log if update didn't affect any rows
+                    if ($updated === 0) {
+                        Log::warning('DDO Change: No rows updated in applicant_official_detail', [
+                            'applicant_official_detail_id' => $applicantOfficialDetailId,
+                            'uid' => $userId,
+                            'old_ddo_id' => $oldDdoId,
+                            'current_ddo_id' => $currentDdoId
+                        ]);
+                    }
+                }
+
+                // Update declaration table
+                DB::table('housing_declration')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->where('uid', $userId)
+                    ->update([
+                        'ddo_change_date' => now(),
+                        'ddo_id_from' => $oldDdoId,
+                        'ddo_id_to' => $currentDdoId,
+                    ]);
+
+                // Update flat occupant status to Accept
+                DB::table('housing_flat_occupant')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->update(['accept_reject_status' => 'Accept']);
+
+                // Update online application status to applicant_acceptance
+                DB::table('housing_online_application')
+                    ->where('online_application_id', $onlineApplicationId)
+                    ->update(['status' => 'applicant_acceptance']);
+
+                // Insert process flow
+                $statusId = $this->getStatusId('applicant_acceptance');
+                if ($statusId) {
+                    // Check if process flow already exists to avoid duplicates
+                    $existingFlow = DB::table('housing_process_flow')
+                        ->where('online_application_id', $onlineApplicationId)
+                        ->where('short_code', 'applicant_acceptance')
+                        ->first();
+                    
+                    if (!$existingFlow) {
+                        DB::table('housing_process_flow')->insert([
+                            'online_application_id' => $onlineApplicationId,
+                            'status_id' => $statusId,
+                            'created_at' => now(),
+                            'uid' => $userId,
+                            'short_code' => 'applicant_acceptance'
+                        ]);
+                    }
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'DDO details updated successfully and You have accepted the terms and conditions stated in the Declaration before Competent Authority.',
                     'status_code' => 200
                 ], 200);
             }
 
-            // Update DDO in applicant official detail
-            DB::table('housing_applicant_official_detail')
-                ->where('applicant_official_detail_id', $applicantOfficialDetailId)
-                ->where('uid', $userId)
-                ->where('ddo_id', $oldDdoId)
-                ->update(['ddo_id' => $currentDdoId]);
-
-            // Update declaration table
-            DB::table('housing_declration')
-                ->where('online_application_id', $onlineApplicationId)
-                ->where('uid', $userId)
-                ->update([
-                    'ddo_change_date' => now(),
-                    'ddo_id_from' => $oldDdoId,
-                    'ddo_id_to' => $currentDdoId,
-                ]);
-
-            // Update flat occupant status to Accept
-            DB::table('housing_flat_occupant')
-                ->where('online_application_id', $onlineApplicationId)
-                ->update(['accept_reject_status' => 'Accept']);
-
-            // Update online application status to applicant_acceptance
-            DB::table('housing_online_application')
-                ->where('online_application_id', $onlineApplicationId)
-                ->update(['status' => 'applicant_acceptance']);
-
-            // Insert process flow
-            $statusId = $this->getStatusId('applicant_acceptance');
-            if ($statusId) {
-                DB::table('housing_process_flow')->insert([
-                    'online_application_id' => $onlineApplicationId,
-                    'status_id' => $statusId,
-                    'created_at' => now(),
-                    'uid' => $userId,
-                    'short_code' => 'applicant_acceptance'
-                ]);
-            }
-
-            DB::commit();
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'DDO details updated successfully and You have accepted the terms and conditions stated in the Declaration before Competent Authority.',
-                'status_code' => 200
-            ], 200);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
+            Log::error('Update DDO Change Validation Error', [
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'Please agree to the declaration to proceed.',
+                'message' => 'Validation failed: ' . implode(', ', array_map(function($errors) {
+                    return implode(', ', $errors);
+                }, $e->errors())),
                 'errors' => $e->errors(),
                 'status_code' => 422
             ], 422);
@@ -218,12 +289,15 @@ class DdoController extends Controller
             DB::rollBack();
             Log::error('Update DDO Change Error', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
             ]);
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to update DDO change',
+                'message' => 'Failed to update DDO change: ' . $e->getMessage(),
                 'status_code' => 500
             ], 500);
         }
@@ -260,7 +334,7 @@ class DdoController extends Controller
      */
     protected function getStatusId($shortCode)
     {
-        $status = DB::table('housing_status')
+        $status = DB::table('housing_allotment_status_master')
             ->where('short_code', $shortCode)
             ->first();
         

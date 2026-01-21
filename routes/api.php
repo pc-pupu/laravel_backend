@@ -160,6 +160,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('ddo/{id}', [\App\Http\Controllers\Api\DdoController::class, 'update']);
         Route::delete('ddo/{id}', [\App\Http\Controllers\Api\DdoController::class, 'destroy']);
 
+        // Generate License
+        Route::get('generate-license/list', [\App\Http\Controllers\Api\GenerateLicenseController::class, 'index']);
+        Route::post('generate-license', [\App\Http\Controllers\Api\GenerateLicenseController::class, 'generate']);
+
         // Existing Applicant (Legacy/Physical Applicants)
         Route::get('existing-applicants', [ExistingApplicantController::class, 'index']);
         Route::get('existing-applicants/with-hrms', [ExistingApplicantController::class, 'withHrms']);
@@ -258,6 +262,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // License Management
         Route::post('license/generate', [\App\Http\Controllers\Api\LicenseController::class, 'generate']);
         Route::get('license/list', [\App\Http\Controllers\Api\LicenseController::class, 'list']);
+        Route::get('license/download-pdf/{online_application_id}', [\App\Http\Controllers\Api\LicenseController::class, 'downloadPdf']);
         Route::get('license/flat-possession-taken', [\App\Http\Controllers\Api\LicenseController::class, 'flatPossessionTaken']);
         Route::get('license/flat-released', [\App\Http\Controllers\Api\LicenseController::class, 'flatReleased']);
 
