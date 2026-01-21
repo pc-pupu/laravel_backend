@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\AuthApiServiceController;
 use App\Http\Controllers\Api\CommonApplicationController;
 use App\Http\Controllers\Api\NewApplicationController;
 use App\Http\Controllers\Api\RheAllotmentController;
+use App\Http\Controllers\Api\AddFlatBlockController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
@@ -107,6 +108,8 @@ Route::post('/view-allotment-letter/cancel', [\App\Http\Controllers\Api\ViewAllo
 Route::get('/rhe-allotment/flat-types', [RheAllotmentController::class, 'getFlatTypes']);
 Route::get('/rhe-allotment/show-vacancy', [RheAllotmentController::class, 'showVacancy']);
 Route::post('/rhe-allotment/process', [RheAllotmentController::class, 'processAllotment']);
+
+Route::post('/block/add', [AddFlatBlockController::class, 'storeFlatBlock']); // Added by Subham dt.20-01-2026
 
 // Protected routes (continued)
 Route::middleware('auth:sanctum')->group(function () {
