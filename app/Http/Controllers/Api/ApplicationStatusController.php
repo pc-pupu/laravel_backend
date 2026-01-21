@@ -236,7 +236,8 @@ class ApplicationStatusController extends Controller
                         'hf.floor',
                         'hf.flat_no',
                         'hb.block_name',
-                        'hol.possession_date'
+                        'hol.possession_date',
+                        'hol.license_no',
                     )
                     ->first();
             }
