@@ -269,6 +269,55 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('license/flat-possession-taken', [\App\Http\Controllers\Api\LicenseController::class, 'flatPossessionTaken']);
         Route::get('license/flat-released', [\App\Http\Controllers\Api\LicenseController::class, 'flatReleased']);
 
+        // VS/CS License Management
+        Route::prefix('generate-vs-cs-license')->group(function () {
+            Route::get('list', [\App\Http\Controllers\Api\GenerateVsCsLicenseController::class, 'index']);
+            Route::post('generate', [\App\Http\Controllers\Api\GenerateVsCsLicenseController::class, 'generate']);
+            Route::get('details', [\App\Http\Controllers\Api\GenerateVsCsLicenseController::class, 'getLicenseDetailsForPdf']);
+            Route::post('upload-signed', [\App\Http\Controllers\Api\GenerateVsCsLicenseController::class, 'uploadSignedLicense']);
+            Route::get('download-signed/{occupant_license_id}', [\App\Http\Controllers\Api\GenerateVsCsLicenseController::class, 'downloadSignedLicense']);
+        });
+
+        // License List Management
+        Route::prefix('license-list')->group(function () {
+            Route::get('list', [\App\Http\Controllers\Api\LicenseListController::class, 'index']);
+            Route::get('rhe-list', [\App\Http\Controllers\Api\LicenseListController::class, 'getRheList']);
+        });
+
+        // View License Details (for applicants)
+        Route::prefix('view-license-details')->group(function () {
+            Route::get('list', [\App\Http\Controllers\Api\ViewLicenseDetailsController::class, 'index']);
+            Route::get('details', [\App\Http\Controllers\Api\ViewLicenseDetailsController::class, 'getLicenseDetailsForPdf']);
+        });
+
+        // New License Application
+        Route::prefix('new-license')->group(function () {
+            Route::get('check-draft', [\App\Http\Controllers\Api\NewLicenseController::class, 'checkDraft']);
+            Route::get('allotment-details', [\App\Http\Controllers\Api\NewLicenseController::class, 'getAllotmentDetails']);
+            Route::post('store', [\App\Http\Controllers\Api\NewLicenseController::class, 'store']);
+        });
+
+        // VS License Application
+        Route::prefix('vs-license')->group(function () {
+            Route::get('check-draft', [\App\Http\Controllers\Api\VsLicenseController::class, 'checkDraft']);
+            Route::get('allotment-details', [\App\Http\Controllers\Api\VsLicenseController::class, 'getAllotmentDetails']);
+            Route::post('store', [\App\Http\Controllers\Api\VsLicenseController::class, 'store']);
+        });
+
+        // CS License Application
+        Route::prefix('cs-license')->group(function () {
+            Route::get('check-draft', [\App\Http\Controllers\Api\CsLicenseController::class, 'checkDraft']);
+            Route::get('allotment-details', [\App\Http\Controllers\Api\CsLicenseController::class, 'getAllotmentDetails']);
+            Route::post('store', [\App\Http\Controllers\Api\CsLicenseController::class, 'store']);
+        });
+
+        // Renew License Application
+        Route::prefix('renew-license')->group(function () {
+            Route::get('check-draft', [\App\Http\Controllers\Api\RenewLicenseController::class, 'checkDraft']);
+            Route::get('license-details', [\App\Http\Controllers\Api\RenewLicenseController::class, 'getLicenseDetails']);
+            Route::post('store', [\App\Http\Controllers\Api\RenewLicenseController::class, 'store']);
+        });
+
         // Allotment List Management (Protected)
         Route::post('allotment-list/approve', [\App\Http\Controllers\Api\AllotmentListController::class, 'approveAllotments']);
         Route::post('allotment-list/reject', [\App\Http\Controllers\Api\AllotmentListController::class, 'rejectAllotments']);
