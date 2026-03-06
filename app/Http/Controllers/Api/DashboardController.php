@@ -319,6 +319,7 @@ class DashboardController extends Controller
                 'haod.applicant_designation',
                 'ha.applicant_name',
                 'hasm.status_description',
+                'hasm.status_id',
                 'hnaa.extra_doc_path',
                 'hnaa.allotment_category'
             )
