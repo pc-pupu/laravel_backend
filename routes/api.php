@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\EstateTreasuryMappingHelperController;
 use App\Http\Controllers\Api\AuthApiServiceController;
 use App\Http\Controllers\Api\CommonApplicationController;
 use App\Http\Controllers\Api\NewApplicationController;
+use App\Http\Controllers\Api\WaitingListController;
+use App\Http\Controllers\Api\VacancyListController;
 use App\Http\Controllers\Api\RheAllotmentController;
 use App\Http\Controllers\Api\AddFlatBlockController;
 
@@ -249,6 +251,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('new-application/data', [NewApplicationController::class, 'getApplicationData']);
         Route::get('new-application/housing-estate-preferences', [NewApplicationController::class, 'getHousingEstatePreferences']);
         Route::get('new-application/flat-type-by-payband', [NewApplicationController::class, 'getFlatTypeByPayBand']);
+        Route::post('new-application/supporting-doc-upload', [NewApplicationController::class, 'uploadSupportingDocument']);
+
+        // Waiting List APIs
+        Route::get('waiting-list/flat-type', [WaitingListController::class, 'flatTypeWaitingList']);
+
+        // Vacancy List APIs
+        Route::get('vacancy-list/district-wise', [VacancyListController::class, 'districtWise']);
+        Route::get('vacancy-list/rhe-wise', [VacancyListController::class, 'rheWise']);
 
         // Application List
         Route::get('application-list', [\App\Http\Controllers\Api\ApplicationListController::class, 'index']);
@@ -338,6 +348,68 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('application-status-check/{id}/request-offer-letter-extension', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'requestOfferLetterExtension']);
         Route::get('application-status-check/{id}/extension-count', [\App\Http\Controllers\Api\ApplicationStatusController::class, 'getExtensionCount']);
     
+        // Special Recommendation APIs
+        Route::prefix('special-recommendation')->group(function () {
+            Route::get('housing-approver-list', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getHousingApproverList']);
+            Route::post('add', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'addToSpecialRecommendation']);
+            Route::post('remove', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'removeFromSpecialRecommendation']);
+            Route::get('list-view', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getSpecialRecommendationListView']);
+            Route::post('update-priority', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'updatePriorityOrder']);
+            Route::get('final-list', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFinalSpecialRecommendedList']);
+            Route::get('view-details/{encrypted_online_application_id}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getApplicationDetails'])
+                ->where('encrypted_online_application_id', '.*');
+            Route::post('convert-to-general', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'convertToGeneralCategory']);
+            Route::post('manual-allotment', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'manualAllotment']);
+            
+            // Helper endpoints for manual allotment
+            Route::prefix('helpers')->group(function () {
+                Route::get('rhe-list', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getRheList']);
+                Route::get('flat-types/{rhe_id}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFlatTypesUnderRhe']);
+                Route::get('blocks/{rhe_id}/{flat_type_id}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getBlocksUnderRhe']);
+                Route::get('floors/{rhe_id}/{flat_type_id}/{block_id}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFloorsUnderRhe']);
+                Route::get('flats/{rhe_id}/{flat_type_id}/{block_id}/{floor_no}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFlatsUnderRhe']);
+            });
+        });
+
+        // Shifting Allotment APIs
+        Route::prefix('shifting-allotment')->group(function () {
+            // VS Allotment
+            Route::get('vs/rhe-list', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'getVsRheList']);
+            Route::get('vs/vacancy-count', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'getVsVacancyCount']);
+            Route::get('vs/applicant-count', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'getVsApplicantCount']);
+            Route::post('vs/process', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'processVsAllotment']);
+            
+            // CS Allotment
+            Route::get('cs/rhe-list', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'getCsRheList']);
+            Route::get('cs/vacancy-count', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'getCsVacancyCount']);
+            Route::get('cs/applicant-count', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'getCsApplicantCount']);
+            Route::post('cs/process', [\App\Http\Controllers\Api\ShiftingAllotmentController::class, 'processCsAllotment']);
+        });
+
+        // Shifting Allotment List APIs
+        Route::prefix('shifting-allotment-list')->group(function () {
+            // VS Allotment List
+            Route::get('vs/process-dates', [\App\Http\Controllers\Api\ShiftingAllotmentListController::class, 'getVsProcessDates']);
+            Route::get('vs/process-numbers', [\App\Http\Controllers\Api\ShiftingAllotmentListController::class, 'getVsProcessNumbers']);
+            Route::get('vs/allottees', [\App\Http\Controllers\Api\ShiftingAllotmentListController::class, 'getVsAllotteeList']);
+            
+            // CS Allotment List
+            Route::get('cs/process-dates', [\App\Http\Controllers\Api\ShiftingAllotmentListController::class, 'getCsProcessDates']);
+            Route::get('cs/process-numbers', [\App\Http\Controllers\Api\ShiftingAllotmentListController::class, 'getCsProcessNumbers']);
+            Route::get('cs/allottees', [\App\Http\Controllers\Api\ShiftingAllotmentListController::class, 'getCsAllotteeList']);
+        });
+
+        // View Shifting Allotment Details APIs
+        Route::prefix('view-shifting-allotment-details')->group(function () {
+            // VS Allotment Details
+            Route::get('vs', [\App\Http\Controllers\Api\ViewShiftingAllotmentDetailsController::class, 'getVsAllotmentDetails']);
+            Route::post('vs/update-status', [\App\Http\Controllers\Api\ViewShiftingAllotmentDetailsController::class, 'updateVsStatus']);
+            
+            // CS Allotment Details
+            Route::get('cs', [\App\Http\Controllers\Api\ViewShiftingAllotmentDetailsController::class, 'getCsAllotmentDetails']);
+            Route::post('cs/update-status', [\App\Http\Controllers\Api\ViewShiftingAllotmentDetailsController::class, 'updateCsStatus']);
+            Route::get('cs/documents', [\App\Http\Controllers\Api\ViewShiftingAllotmentDetailsController::class, 'getCsDocuments']);
+        });
 });
 
 

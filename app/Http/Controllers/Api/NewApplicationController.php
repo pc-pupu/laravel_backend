@@ -91,6 +91,80 @@ class NewApplicationController extends Controller
     }
 
     /**
+     * Upload supporting document for an existing new application
+     * Mirrors Drupal supporting_doc_upload_submit logic
+     */
+    public function uploadSupportingDocument(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'online_application_id' => 'required|integer|exists:housing_new_allotment_application,online_application_id',
+            'extra_doc' => 'required|file|mimes:pdf|max:1024', // 1MB max
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $onlineApplicationId = (int) $request->input('online_application_id');
+
+        try {
+            DB::beginTransaction();
+
+            // Optional: ensure application exists and is new-apply, not VS/CS
+            $application = DB::table('housing_online_application as hoa')
+                ->leftJoin('housing_new_allotment_application as hnaa', 'hnaa.online_application_id', '=', 'hoa.online_application_id')
+                ->where('hoa.online_application_id', $onlineApplicationId)
+                ->select('hoa.application_no', 'hnaa.allotment_category')
+                ->first();
+
+            if (!$application) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Application not found',
+                ], 404);
+            }
+
+            // Store document using existing helper
+            $file = $request->file('extra_doc');
+            $documentPath = $this->handleDocumentUpload($file, $onlineApplicationId, 'NA');
+
+            DB::table('housing_new_allotment_application')
+                ->where('online_application_id', $onlineApplicationId)
+                ->update([
+                    'extra_doc_path' => $documentPath,
+                ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Supporting Document uploaded successfully.',
+                'data' => [
+                    'online_application_id' => $onlineApplicationId,
+                    'extra_doc_path' => $documentPath,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Upload Supporting Document Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to upload supporting document: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get housing estate preferences based on pay band and treasury
      */
     public function getHousingEstatePreferences(Request $request)
