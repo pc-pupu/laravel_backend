@@ -38,6 +38,7 @@ class WaitingListController extends Controller
                 ]);
             }
 
+            // \Log::info('Fetching waiting list for flat type ID: ' . $flatTypeId);
             // Query based on Drupal flat_type_wise_waiting_detail_for_competent_authority
             $query = DB::table('housing_applicant as ha')
                 ->join('housing_applicant_official_detail as haod', 'haod.housing_applicant_id', '=', 'ha.housing_applicant_id')
@@ -54,7 +55,7 @@ class WaitingListController extends Controller
                     'hft.flat_type',
                     'hoa.computer_serial_no',
                     'hnaa.allotment_category',
-                    'hnaa.grade_pay'
+                    'haod.grade_pay'
                 );
 
             // Order by numeric then alpha part of computer_serial_no (PostgreSQL)
@@ -62,6 +63,7 @@ class WaitingListController extends Controller
             $query->orderByRaw("regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC");
 
             $results = $query->get();
+            // \Log::info('Waiting list query executed. Number of records: ' . $results->count());
 
             $rows = [];
             $waitingNo = 1;
