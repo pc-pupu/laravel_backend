@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Helpers\AuthEncryptionHelper;
 use Illuminate\Support\Facades\Http;
+use App\Services\ErrorLogService;
 
 class DashboardController extends Controller
 {
@@ -72,6 +73,7 @@ class DashboardController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'dashboard', 'action' => 'index']);
 
             return response()->json([
                 'status' => 'error',

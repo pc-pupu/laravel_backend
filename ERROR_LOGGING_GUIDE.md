@@ -64,6 +64,7 @@ log_info('Informational message');
 Each error log entry includes:
 - **level**: Error level (error, warning, info, debug)
 - **message**: Error message
+- **exception_type**: Exception/error class (e.g. `Illuminate\Database\QueryException`)
 - **file**: File where error occurred
 - **line**: Line number where error occurred
 - **trace**: Full stack trace
@@ -115,7 +116,8 @@ All errors can be viewed in the admin panel at:
   - Filter by level
   - Search by message
   - Filter by date range
-  - View detailed error information
+  - View detailed error information (error type, user, time)
   - Delete individual errors
+  - **Clear by time**: Delete errors older than X days, or between two dates
   - Clear all errors
 

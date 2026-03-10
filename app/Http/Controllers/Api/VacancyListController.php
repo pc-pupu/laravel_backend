@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\ErrorLogService;
 
 class VacancyListController extends Controller
 {
@@ -125,6 +126,7 @@ class VacancyListController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'vacancy_list', 'action' => 'district_wise']);
 
             return response()->json([
                 'status' => 'error',
@@ -244,6 +246,7 @@ class VacancyListController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'vacancy_list', 'action' => 'rhe_wise']);
 
             return response()->json([
                 'status' => 'error',

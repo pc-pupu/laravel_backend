@@ -4,11 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * CMS content (housing_cms).
+ * Mirrors Drupal cms_content module: faq, about_us, contact_us, what_is_new, notice, user_manual.
+ */
 class housingCms extends Model
 {
-    protected $table = 'housing_cms';  // your table name
-    protected $primaryKey = 'housing_cms_id';             // change if your PK is different
-    public $timestamps = false;               // set true if you have created_at/updated_at
+    protected $table = 'housing_cms';
+    protected $primaryKey = 'housing_cms_id';
+    public $timestamps = false;
 
     protected $fillable = [
         'content_type',
@@ -26,6 +30,5 @@ class housingCms extends Model
         'file_path',
         'created_date',
         'updated_date',
-        // add more columns as needed
     ];
 }

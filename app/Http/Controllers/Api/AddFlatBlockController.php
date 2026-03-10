@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Services\ErrorLogService;
 
 class AddFlatBlockController extends Controller
 {
@@ -35,6 +36,7 @@ class AddFlatBlockController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'flat_block', 'action' => 'create']);
 
             return response()->json([
                 'success' => false,

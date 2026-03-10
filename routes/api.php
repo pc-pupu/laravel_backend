@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\AddFlatBlockController;
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
 Route::get('/cms/{param}', [CmsContentPublicController::class, 'show']);
+Route::get('/auth/public-key', [AuthController::class, 'getPublicKey']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/generate-sso-token', [AuthController::class, 'generateSsoToken']);
 
@@ -145,6 +146,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('sidebar-menus/{id}', [SidebarMenuController::class, 'show']);
         Route::put('sidebar-menus/{id}', [SidebarMenuController::class, 'update']);
         Route::delete('sidebar-menus/{id}', [SidebarMenuController::class, 'destroy']);
+
+        // Error Logs (statistics and clear-by-time before {id} so they are matched first)
+        Route::get('error-logs/statistics', [ErrorLogController::class, 'statistics']);
+        Route::get('error-logs', [ErrorLogController::class, 'index']);
+        Route::get('error-logs/{id}', [ErrorLogController::class, 'show']);
+        Route::delete('error-logs/clear-by-time', [ErrorLogController::class, 'clearByTime']);
+        Route::delete('error-logs/{id}', [ErrorLogController::class, 'destroy']);
+        Route::delete('error-logs', [ErrorLogController::class, 'clear']);
+
+        // Cache clear (for admin panel: clear backend cache)
+        Route::post('cache/clear', [\App\Http\Controllers\Api\CacheClearController::class, 'clear']);
         
     });
         // CMS Content
