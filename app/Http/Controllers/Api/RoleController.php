@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\Permission;
+use App\Services\ErrorLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -64,19 +65,30 @@ class RoleController extends Controller
             ], 422);
         }
 
-        $role = Role::create([
-            'name'       => $request->name,
-            'guard_name' => $guardName,
-        ]);
+        try {
+            $role = ErrorLogService::wrap(function () use ($request, $guardName) {
+                return Role::create([
+                    'name'       => $request->name,
+                    'guard_name' => $guardName,
+                ]);
+            }, ['module' => 'roles', 'action' => 'create']);
 
-        // Sync permissions
-        if ($request->permissions) {
-            $role->permissions()->sync($request->permissions);
-        } else {
-            $role->permissions()->sync([]);
+            // Sync permissions
+            ErrorLogService::wrap(function () use ($role, $request) {
+                if ($request->permissions) {
+                    $role->permissions()->sync($request->permissions);
+                } else {
+                    $role->permissions()->sync([]);
+                }
+            }, ['module' => 'roles', 'action' => 'permissions_sync', 'role_id' => $role->id]);
+
+            $role->load('permissions', 'users');
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to create role.',
+            ], 500);
         }
-
-        $role->load('permissions', 'users');
 
         return response()->json([
             'status'  => 'success',
@@ -142,20 +154,31 @@ class RoleController extends Controller
             ], 422);
         }
 
-        // Update basic fields
-        $role->name = $request->name;
-        $role->guard_name = $request->guard_name ?? $role->guard_name;
-        $role->is_active = $request->has('is_active') ? $request->is_active : $role->is_active;
-        $role->save();
+        try {
+            ErrorLogService::wrap(function () use ($role, $request) {
+                // Update basic fields
+                $role->name = $request->name;
+                $role->guard_name = $request->guard_name ?? $role->guard_name;
+                $role->is_active = $request->has('is_active') ? $request->is_active : $role->is_active;
+                $role->save();
+            }, ['module' => 'roles', 'action' => 'update', 'role_id' => $role->id]);
 
-        // Sync permissions
-        if ($request->has('permissions')) {
-            $role->permissions()->sync($request->permissions);
-        } else {
-            $role->permissions()->sync([]);
+            // Sync permissions
+            ErrorLogService::wrap(function () use ($role, $request) {
+                if ($request->has('permissions')) {
+                    $role->permissions()->sync($request->permissions);
+                } else {
+                    $role->permissions()->sync([]);
+                }
+            }, ['module' => 'roles', 'action' => 'permissions_sync', 'role_id' => $role->id]);
+
+            $role->load('permissions', 'users');
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to update role.',
+            ], 500);
         }
-
-        $role->load('permissions', 'users');
 
         return response()->json([
             'status'  => 'success',
@@ -178,7 +201,16 @@ class RoleController extends Controller
             ], 404);
         }
 
-        $role->delete();
+        try {
+            ErrorLogService::wrap(function () use ($role) {
+                $role->delete();
+            }, ['module' => 'roles', 'action' => 'delete', 'role_id' => $role->id]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to delete role.',
+            ], 500);
+        }
 
         return response()->json([
             'status'  => 'success',

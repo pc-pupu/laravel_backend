@@ -3,20 +3,27 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreCmsContentRequest;
+use App\Http\Requests\UpdateCmsContentRequest;
 use App\Models\housingCms;
+use App\Services\ErrorLogService;
 use App\Support\Concerns\HandlesCmsContent;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Log;
 
+/**
+ * CMS Content API (admin).
+ * CRUD for housing_cms; mirrors legacy Drupal cms_content module.
+ */
 class CmsContentController extends Controller
 {
     use HandlesCmsContent;
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $query = housingCms::query();
 
@@ -47,9 +54,7 @@ class CmsContentController extends Controller
         $perPage = (int) $request->input('per_page', 15);
         $contents = $query->paginate($perPage);
 
-        $contents->getCollection()->transform(function ($content) {
-            return $this->formatCmsContent($content);
-        });
+        $contents->getCollection()->transform(fn ($content) => $this->formatCmsContent($content));
 
         return response()->json([
             'status' => 'success',
@@ -57,52 +62,59 @@ class CmsContentController extends Controller
         ]);
     }
 
-    public function stats()
+    public function stats(): JsonResponse
     {
         $nextOrder = (int) housingCms::max('order_no') + 1;
 
         return response()->json([
             'status' => 'success',
-            'data' => [
+            'data'   => [
                 'next_order_no' => $nextOrder ?: 1,
             ],
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreCmsContentRequest $request): JsonResponse
     {
-        $validator = $this->validator($request->all());
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Please fix the errors below.',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        $data = $this->mapPayload($validator->validated());
+        $data = $this->mapPayload($request->validated());
 
         if ($request->hasFile('content_file_upload')) {
             try {
                 $data = array_merge($data, $this->storeFile($request, $data['content_type']));
-                $content = housingCms::create($data);
-                return response()->json([
-                    'status'  => 'success',
-                    'message' => 'Content added successfully.',
-                    'data'    => $this->formatCmsContent($content),
-                ], 201);
             } catch (\Exception $e) {
+                Log::warning('CMS content file store failed', ['error' => $e->getMessage()]);
+                // This is a handled error (422) so it won't reach the global handler; log it explicitly.
+                ErrorLogService::logException($e, 'warning', [
+                    'module' => 'cms_content',
+                    'action' => 'store_file',
+                ]);
                 return response()->json([
                     'status'  => 'error',
                     'message' => $e->getMessage(),
                 ], 422);
             }
         }
-        // Log::info('Creating CMS Content', ['data' => $data]);
+
+        try {
+            $content = ErrorLogService::wrap(function () use ($data) {
+                return housingCms::create($data);
+            }, ['module' => 'cms_content', 'action' => 'create']);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to add content.',
+            ], 500);
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Content added successfully.',
+            'data'    => $this->formatCmsContent($content),
+        ], 201);
     }
 
-    public function show($id)
+    /** @param int|string $id */
+    public function show($id): JsonResponse
     {
         $content = housingCms::find($id);
 
@@ -119,11 +131,12 @@ class CmsContentController extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
+    /** @param int|string $id */
+    public function update(UpdateCmsContentRequest $request, $id): JsonResponse
     {
+        $id = (int) $id;
         $content = housingCms::find($id);
 
-        \Log::info('Updating CMS Content Request', ['id' => $id, 'request' => $request->all()]);
         if (!$content) {
             return response()->json([
                 'status'  => 'error',
@@ -131,37 +144,65 @@ class CmsContentController extends Controller
             ], 404);
         }
 
-        $validator = $this->validator($request->all(), true);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Please fix the errors below.',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        $data = $this->mapPayload($validator->validated(), $content);
+        $data = $this->mapPayload($request->validated(), $content);
         $data['updated_date'] = Carbon::now()->format('Y-m-d H:i:s');
-        
+
         if ($request->hasFile('content_file_upload')) {
             try {
                 $this->removeExistingFile($content);
                 $data = array_merge($data, $this->storeFile($request, $data['content_type']));
             } catch (\Exception $e) {
+                Log::warning('CMS content file store failed on update', ['id' => $id, 'error' => $e->getMessage()]);
+                // This is a handled error (422) so it won't reach the global handler; log it explicitly.
+                ErrorLogService::logException($e, 'warning', [
+                    'module' => 'cms_content',
+                    'action' => 'update_file',
+                    'housing_cms_id' => $id,
+                ]);
                 return response()->json([
                     'status'  => 'error',
                     'message' => $e->getMessage(),
                 ], 422);
             }
         }
-        try {
-            $content->update($data);
-            \Log::info('Updating CMS Content', ['data' => $data]);
-        } catch (\Exception $e) {
-            \Log::info('Error Updating CMS Content', ['error' => $e->getMessage()]);
-        }
+
         
+        try {
+            $updated = ErrorLogService::wrap(function () use ($content, $data) {
+                // Eloquent update() returns bool; it may return false without throwing.
+                return $content->update($data);
+            }, [
+                'module' => 'cms_content',
+                'action' => 'update',
+                'housing_cms_id' => $content->housing_cms_id ?? $content->id,
+            ]);
+
+            if ($updated !== true) {
+                // No exception was thrown, but update did not succeed — log it explicitly.
+                ErrorLogService::logMessage('CMS content update returned false (no exception).', 'warning', [
+                    'module' => 'cms_content',
+                    'action' => 'update',
+                    'housing_cms_id' => $content->housing_cms_id ?? $content->id,
+                ]);
+
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Failed to update content.',
+                ], 500);
+            }
+        } catch (\Throwable $e) {
+            // wrap() already logged the exception; return a safe error response.
+            // \Log::info('CMS content update failed with exception.', [
+            //     'module' => 'cms_content',
+            //     'action' => 'update',
+            //     'housing_cms_id' => $content->housing_cms_id ?? $content->id,
+            //     'error' => $e->getMessage(),
+            // ]);
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to update content.',
+            ], 500);
+        }
 
         return response()->json([
             'status'  => 'success',
@@ -170,9 +211,10 @@ class CmsContentController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    /** @param int|string $id */
+    public function destroy($id): JsonResponse
     {
-        $content = housingCms::find($id);
+        $content = housingCms::find((int) $id);
 
         if (!$content) {
             return response()->json([
@@ -181,8 +223,17 @@ class CmsContentController extends Controller
             ], 404);
         }
 
-        $this->removeExistingFile($content);
-        $content->delete();
+        try {
+            ErrorLogService::wrap(function () use ($content) {
+                $this->removeExistingFile($content);
+                $content->delete();
+            }, ['module' => 'cms_content', 'action' => 'delete', 'housing_cms_id' => $content->housing_cms_id ?? $content->id]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to delete content.',
+            ], 500);
+        }
 
         return response()->json([
             'status'  => 'success',
@@ -190,29 +241,7 @@ class CmsContentController extends Controller
         ]);
     }
 
-    protected function validator(array $data, bool $isUpdate = false)
-    {
-        $maxOrder = (int) housingCms::max('order_no') + 1;
-
-        return Validator::make($data, [
-            'content_type'        => 'required|string|in:' . implode(',', $this->cmsContentTypes),
-            'link_title'          => 'nullable|string|max:255',
-            'content_title'       => 'required|string|max:255',
-            'content_description' => 'required|string',
-            'order_no'            => 'nullable|integer|min:1|max:' . ($maxOrder ?: 10000),
-            'meta_keyword'        => 'nullable|string|max:255',
-            'meta_description'    => 'nullable|string',
-            'date_of_notification'=> 'required|string',
-            'is_active'           => 'required|in:0,1',
-            'is_new'              => 'nullable|in:0,1',
-            'content_file_upload' => ($isUpdate ? 'nullable' : 'nullable') . '|file|mimes:pdf|max:1024', // 1 MB = 1024 KB
-        ], [
-            'content_type.in' => 'Please select a valid content type.',
-            'content_file_upload.mimes' => 'Only PDF files are allowed.',
-            'content_file_upload.max' => 'The file size must not exceed 1 MB.',
-        ]);
-    }
-
+    /** @return array<string, mixed> */
     protected function mapPayload(array $validated, ?housingCms $existing = null): array
     {
         $date = $this->parseDate($validated['date_of_notification'] ?? null);
@@ -221,18 +250,18 @@ class CmsContentController extends Controller
             ?? ($existing ? $existing->order_no : (housingCms::max('order_no') + 1));
 
         return [
-            'content_type'        => $this->normalizeContentType($validated['content_type']),
-            'content_title'       => $validated['content_title'],
-            'link_title'          => $validated['link_title'] ?? null,
-            'order_no'            => $order,
-            'meta_keyword'        => $validated['meta_keyword'] ?? null,
-            'meta_description'    => $validated['meta_description'] ?? null,
-            'date_of_notification'=> $date,
-            'content_description' => $validated['content_description'],
-            'is_active'           => (int) ($validated['is_active'] ?? 1),
-            'is_new'              => (int) ($validated['is_new'] ?? 0),
-            'url'                 => Str::slug($validated['content_title'], '_'),
-            'created_date'        => Carbon::now()->format('Y-m-d H:i:s'),
+            'content_type'         => $this->normalizeContentType($validated['content_type']),
+            'content_title'        => $validated['content_title'],
+            'link_title'           => $validated['link_title'] ?? null,
+            'order_no'             => (int) $order,
+            'meta_keyword'         => $validated['meta_keyword'] ?? null,
+            'meta_description'     => $validated['meta_description'] ?? null,
+            'date_of_notification' => $date,
+            'content_description'  => $validated['content_description'],
+            'is_active'            => (int) ($validated['is_active'] ?? 1),
+            'is_new'               => (int) ($validated['is_new'] ?? 0),
+            'url'                  => Str::slug($validated['content_title'], '_'),
+            'created_date'         => Carbon::now()->format('Y-m-d H:i:s'),
         ];
     }
 

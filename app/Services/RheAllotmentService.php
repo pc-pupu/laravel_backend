@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use App\Services\ProcessFlowService;
+use App\Services\ErrorLogService;
+use App\Services\ErrorLogService;
 
 class RheAllotmentService
 {
@@ -892,6 +894,12 @@ class RheAllotmentService
             Log::error('RHE Allotment Process Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+                'allotment_type' => $allotmentType,
+                'district_code' => $districtCode,
+            ]);
+            ErrorLogService::logException($e, 'error', [
+                'module' => 'rhe_allotment',
+                'action' => 'process_allotment',
                 'allotment_type' => $allotmentType,
                 'district_code' => $districtCode,
             ]);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Permission;
+use App\Services\ErrorLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -63,10 +64,19 @@ class PermissionController extends Controller
             ], 422);
         }
 
-        $perm = Permission::create([
-            'name'       => $request->name,
-            'guard_name' => $request->guard_name ?? 'web',
-        ]);
+        try {
+            $perm = ErrorLogService::wrap(function () use ($request) {
+                return Permission::create([
+                    'name'       => $request->name,
+                    'guard_name' => $request->guard_name ?? 'web',
+                ]);
+            }, ['module' => 'permissions', 'action' => 'create']);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to create permission.',
+            ], 500);
+        }
 
         return response()->json([
             'status'  => 'success',
@@ -123,9 +133,18 @@ class PermissionController extends Controller
             ], 422);
         }
 
-        $permission->name = $request->name;
-        $permission->guard_name = $request->guard_name ?? $permission->guard_name;
-        $permission->save();
+        try {
+            ErrorLogService::wrap(function () use ($permission, $request) {
+                $permission->name = $request->name;
+                $permission->guard_name = $request->guard_name ?? $permission->guard_name;
+                $permission->save();
+            }, ['module' => 'permissions', 'action' => 'update', 'permission_id' => $permission->id]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to update permission.',
+            ], 500);
+        }
 
         return response()->json([
             'status'  => 'success',
@@ -149,8 +168,17 @@ class PermissionController extends Controller
             ], 404);
         }
 
-        // Laravel will auto-delete pivot relationships
-        $permission->delete();
+        try {
+            ErrorLogService::wrap(function () use ($permission) {
+                // Laravel will auto-delete pivot relationships
+                $permission->delete();
+            }, ['module' => 'permissions', 'action' => 'delete', 'permission_id' => $permission->id]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to delete permission.',
+            ], 500);
+        }
 
         return response()->json([
             'status'  => 'success',

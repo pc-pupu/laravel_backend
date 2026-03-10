@@ -12,6 +12,7 @@ class ErrorLog extends Model
     protected $fillable = [
         'level',
         'message',
+        'exception_type',
         'context',
         'file',
         'line',

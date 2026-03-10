@@ -3,24 +3,58 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\RsaEncryptionService;
 use DB;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Services\ErrorLogService;
 
 class AuthController extends Controller
 {
-    // Login API
-    public function login(Request $request)
+    /**
+     * Audit: Expose RSA public key for client-side password encryption.
+     */
+    public function getPublicKey(RsaEncryptionService $rsa): \Illuminate\Http\JsonResponse
     {
-        \Log::info('Login Attempt', ['name' => $request->name]);
-        $credentials = $request->validate([
-            'name' => 'required|string',
-            'password' => 'required|string',
+        return response()->json([
+            'public_key' => $rsa->getPublicKey(),
+        ]);
+    }
+
+    /**
+     * Login API. Audit: Accepts password_encrypted (RSA) - decrypted server-side before verification.
+     */
+    public function login(Request $request, RsaEncryptionService $rsa)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'password' => 'required_without:password_encrypted|nullable|string|max:255',
+            'password_encrypted' => 'nullable|string|max:4096',
         ]);
 
-        // Check if user exists
+        $password = null;
+        if ($request->filled('password_encrypted')) {
+            try {
+                $password = $rsa->decrypt($request->password_encrypted);
+            } catch (\Exception $e) {
+                ErrorLogService::logException($e, 'warning', ['module' => 'auth', 'action' => 'login_decrypt']);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid credentials'
+                ], 401);
+            }
+        } else {
+            $password = $request->password;
+        }
+
+        if (!$password || strlen($password) > 255) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
+
         $user = User::where('name', $request->name)->first();
 
         if (!$user) {
@@ -30,7 +64,6 @@ class AuthController extends Controller
             ], 404);
         }
 
-        // Check if user is active
         if ($user->status != 1) {
             return response()->json([
                 'status' => 'error',
@@ -38,34 +71,24 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // Handle password migration for Drupal users (if new_pass_set is 0)
         if ($user->new_pass_set == 0) {
-            $user->password = Hash::make($request->password);
+            $user->password = Hash::make($password);
             $user->new_pass_set = 1;
             $user->save();
         }
 
-        // Password check 
-        $isPasswordCorrect = Hash::check($request->password, $user->password);
-
-
-        if (!$isPasswordCorrect) {
-            \Log::info('invalid password', ['pass' => $isPasswordCorrect]);
+        if (!Hash::check($password, $user->password)) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Invalid password'
             ], 401);
         }
 
-        
-        // ✅ Create token using the user model directly
         $token = $user->createToken('api_token')->plainTextToken;
-
         $user_role = DB::table('user_role')
             ->where('uid', $user->uid)
             ->select('rid')->first();
-             \Log::info('User Role', ['role' => $user_role]);
-             \Log::info('Login Successful', ['user' => $user->uid, 'token' => $token]);
+
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',
@@ -77,7 +100,6 @@ class AuthController extends Controller
             ],
             'token' => $token,
         ]);
-
     }
 
     // Get Authenticated User
@@ -141,6 +163,7 @@ class AuthController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'auth', 'action' => 'generate_sso_token']);
 
             return response()->json([
                 'status' => 'error',

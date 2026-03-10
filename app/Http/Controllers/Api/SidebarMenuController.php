@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\HousingSidebarMenu;
+use App\Services\ErrorLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -175,6 +176,7 @@ class SidebarMenuController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
+            ErrorLogService::logException($e, 'error', ['module' => 'sidebar_menus', 'action' => 'create']);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to create menu: ' . $e->getMessage()
@@ -261,6 +263,7 @@ class SidebarMenuController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            ErrorLogService::logException($e, 'error', ['module' => 'sidebar_menus', 'action' => 'update', 'sidebar_menu_id' => $id]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to update menu: ' . $e->getMessage()
@@ -306,6 +309,7 @@ class SidebarMenuController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            ErrorLogService::logException($e, 'error', ['module' => 'sidebar_menus', 'action' => 'delete', 'sidebar_menu_id' => $id]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to delete menu: ' . $e->getMessage()

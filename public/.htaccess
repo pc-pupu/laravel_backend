@@ -8,8 +8,8 @@
     # Disable directory listing
     Options -Indexes
 
-    # Block dangerous HTTP methods
-    RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK|CONNECT|DELETE) [NC]
+    # Block dangerous HTTP methods (TRACE/TRACK/CONNECT only; keep DELETE for REST API)
+    RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK|CONNECT) [NC]
     RewriteRule ^(.*)$ - [F,L]
 
     # Handle Authorization Header

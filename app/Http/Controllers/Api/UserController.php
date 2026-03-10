@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\PasswordHistory;
+use App\Services\ErrorLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -63,27 +64,41 @@ class UserController extends Controller
             ], 422);
         }
 
-        // Create user
-        $user = new User();
-        $user->name         = $request->name;
-        $user->email        = $request->email;
-        $user->password     = Hash::make($request->password);
-        $user->status       = $request->status ?? 1;
-        $user->new_pass_set = 1;
-        $user->save();
+        try {
+            // Create user
+            $user = ErrorLogService::wrap(function () use ($request) {
+                $user = new User();
+                $user->name         = $request->name;
+                $user->email        = $request->email;
+                $user->password     = Hash::make($request->password);
+                $user->status       = $request->status ?? 1;
+                $user->new_pass_set = 1;
+                $user->save();
+                return $user;
+            }, ['module' => 'users', 'action' => 'create']);
 
-        // Save password to history
-        PasswordHistory::create([
-            'uid'           => $user->uid,
-            'password_hash' => $user->password
-        ]);
+            // Save password to history
+            ErrorLogService::wrap(function () use ($user) {
+                PasswordHistory::create([
+                    'uid'           => $user->uid,
+                    'password_hash' => $user->password
+                ]);
+            }, ['module' => 'users', 'action' => 'password_history_create', 'uid' => $user->uid]);
 
-        // Assign roles
-        if ($request->roles) {
-            $user->roles()->sync($request->roles);
+            // Assign roles
+            if ($request->roles) {
+                ErrorLogService::wrap(function () use ($user, $request) {
+                    $user->roles()->sync($request->roles);
+                }, ['module' => 'users', 'action' => 'roles_sync', 'uid' => $user->uid]);
+            }
+
+            $user->load('roles');
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to create user.',
+            ], 500);
         }
-
-        $user->load('roles');
 
         return response()->json([
             'status'  => 'success',
@@ -180,17 +195,44 @@ class UserController extends Controller
             $user->password = $newHash;
             $user->new_pass_set = 1;
 
-            PasswordHistory::create([
-                'uid'           => $user->uid,
-                'password_hash' => $newHash,
-            ]);
+            try {
+                ErrorLogService::wrap(function () use ($user, $newHash) {
+                    PasswordHistory::create([
+                        'uid'           => $user->uid,
+                        'password_hash' => $newHash,
+                    ]);
+                }, ['module' => 'users', 'action' => 'password_history_create', 'uid' => $user->uid]);
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Failed to update user password history.',
+                ], 500);
+            }
         }
 
-        $user->save();
+        try {
+            ErrorLogService::wrap(function () use ($user) {
+                $user->save();
+            }, ['module' => 'users', 'action' => 'update', 'uid' => $user->uid]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to update user.',
+            ], 500);
+        }
 
         // Sync roles
         if ($request->has('roles')) {
-            $user->roles()->sync($request->roles);
+            try {
+                ErrorLogService::wrap(function () use ($user, $request) {
+                    $user->roles()->sync($request->roles);
+                }, ['module' => 'users', 'action' => 'roles_sync', 'uid' => $user->uid]);
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Failed to update user roles.',
+                ], 500);
+            }
         }
 
         $user->load('roles');
@@ -216,7 +258,16 @@ class UserController extends Controller
             ], 404);
         }
 
-        $user->delete();
+        try {
+            ErrorLogService::wrap(function () use ($user) {
+                $user->delete();
+            }, ['module' => 'users', 'action' => 'delete', 'uid' => $user->uid]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to delete user.',
+            ], 500);
+        }
 
         return response()->json([
             'status'  => 'success',

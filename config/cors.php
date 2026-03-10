@@ -19,7 +19,9 @@ return [
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => env('CORS_ALLOWED_ORIGINS') ? array_filter(explode(',', env('CORS_ALLOWED_ORIGINS'))) : ['*'],
+    'allowed_origins' => env('CORS_ALLOWED_ORIGINS')
+        ? array_values(array_filter(array_map('trim', explode(',', env('CORS_ALLOWED_ORIGINS')))))
+        : [],
 
     'allowed_origins_patterns' => [],
 

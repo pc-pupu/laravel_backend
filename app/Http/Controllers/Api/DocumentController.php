@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Crypt;
+use App\Services\ErrorLogService;
 
 class DocumentController extends Controller
 {
@@ -24,33 +25,33 @@ class DocumentController extends Controller
         }
 
         try {
-            // Decrypt the path
             $filePath = Crypt::decryptString($encryptedPath);
         } catch (\Exception $e) {
-            Log::error('Document Download Error', [
-                'error' => $e->getMessage(),
-                'encrypted_path' => $encryptedPath
-            ]);
-            return response()->json([
-                'error' => 'Invalid download link'
-            ], 403);
+            Log::error('Document Download Error');
+            ErrorLogService::logException($e, 'warning', ['module' => 'documents', 'action' => 'download_decrypt']);
+            return response()->json(['error' => 'Invalid download link'], 403);
         }
 
-        // Check if file exists in backend public storage
+        $filePath = str_replace(["\0", '\\'], ['', '/'], (string) $filePath);
+        if ($filePath === '' || str_starts_with($filePath, '/') || str_contains($filePath, '..') || preg_match('#^[a-zA-Z]:[/\\\\]#', $filePath)) {
+            return response()->json(['error' => 'Invalid download link'], 403);
+        }
+
+        $allowedExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv'];
+        $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        if ($ext === '' || !in_array($ext, $allowedExt, true)) {
+            return response()->json(['error' => 'File type not allowed'], 403);
+        }
+
         if (!Storage::disk('public')->exists($filePath)) {
-            Log::error('Document Not Found in Backend', [
-                'filePath' => $filePath,
-                'storage_path' => Storage::disk('public')->path($filePath)
-            ]);
-            return response()->json([
-                'error' => 'File not found',
-                'filePath' => $filePath
-            ], 404);
+            Log::error('Document Not Found in Backend');
+            return response()->json(['error' => 'File not found'], 404);
         }
 
         $fullPath = Storage::disk('public')->path($filePath);
         $fileName = basename($filePath);
-        
+        $fileName = preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName) ?: 'document.' . $ext;
+
         return response()->download($fullPath, $fileName);
     }
 }

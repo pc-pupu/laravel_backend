@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use App\Services\ErrorLogService;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -68,6 +69,7 @@ class NotificationService
                 'to' => $to,
                 'error' => $e->getMessage(),
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'notifications', 'action' => 'send_mail', 'to' => $to]);
             return false;
         }
     }
@@ -114,6 +116,7 @@ class NotificationService
                 'dest' => $dest,
                 'error' => $e->getMessage(),
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'notifications', 'action' => 'send_sms', 'dest' => $dest]);
             return false;
         }
     }

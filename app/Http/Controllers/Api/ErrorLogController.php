@@ -178,6 +178,62 @@ class ErrorLogController extends Controller
     }
 
     /**
+     * Clear error logs by time: older than X days, or between date_from and date_to.
+     * Query params: older_than_days (int), or date_from + date_to (Y-m-d).
+     */
+    public function clearByTime(Request $request)
+    {
+        try {
+            if (!Schema::hasTable('error_logs')) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Error logs table does not exist.'
+                ], 404);
+            }
+
+            $query = ErrorLog::query();
+
+            if ($request->filled('older_than_days')) {
+                $days = (int) $request->older_than_days;
+                if ($days < 1) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'older_than_days must be at least 1.'
+                    ], 422);
+                }
+                $before = now()->subDays($days);
+                $query->where('created_at', '<', $before);
+            } elseif ($request->filled('date_from') || $request->filled('date_to')) {
+                if ($request->filled('date_from')) {
+                    $query->whereDate('created_at', '>=', $request->date_from);
+                }
+                if ($request->filled('date_to')) {
+                    $query->whereDate('created_at', '<=', $request->date_to);
+                }
+            } else {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Provide either older_than_days or date_from/date_to.'
+                ], 422);
+            }
+
+            $deleted = $query->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => $deleted . ' error log(s) cleared successfully',
+                'data' => ['deleted_count' => $deleted]
+            ]);
+        } catch (\Exception $e) {
+            ErrorLogService::logException($e, 'error');
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to clear error logs: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get error log statistics.
      */
     public function statistics()

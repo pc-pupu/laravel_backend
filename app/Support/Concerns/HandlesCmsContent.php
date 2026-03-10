@@ -2,28 +2,15 @@
 
 namespace App\Support\Concerns;
 
+use App\Constants\CmsContentType;
 use App\Models\housingCms;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 trait HandlesCmsContent
 {
-    /**
-     * Allowed CMS content types as per legacy Drupal module.
-     */
-    protected array $cmsContentTypes = [
-        'faq',
-        'about_us',
-        'contact_us',
-        'what_is_new',
-        'notice',
-        'user_manual',
-    ];
-
     protected function normalizeContentType(string $type): string
     {
-        $type = strtolower(str_replace('-', '_', trim($type)));
-        return in_array($type, $this->cmsContentTypes, true) ? $type : $type;
+        return CmsContentType::normalize($type);
     }
 
     protected function formatCmsContent(housingCms $content): array

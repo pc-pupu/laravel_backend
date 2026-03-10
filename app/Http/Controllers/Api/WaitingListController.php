@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\ErrorLogService;
 
 class WaitingListController extends Controller
 {
@@ -93,6 +94,7 @@ class WaitingListController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+            ErrorLogService::logException($e, 'error', ['module' => 'waiting_list', 'action' => 'flat_type_waiting_list']);
 
             return response()->json([
                 'status' => 'error',

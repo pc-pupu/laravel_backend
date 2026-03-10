@@ -4,11 +4,37 @@ namespace App\Services;
 
 use App\Models\ErrorLog;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ErrorLogService
 {
+    /**
+     * Wrap a DB write (create/update/delete/etc) so that any exception is logged
+     * into the error_logs table, then rethrown.
+     *
+     * Use this in controllers/services around DB write operations.
+     *
+     * @template T
+     * @param callable():T $fn
+     * @param array $context
+     * @param string $level
+     * @return T
+     *
+     * @throws \Throwable
+     */
+    public static function wrap(callable $fn, array $context = [], string $level = 'error')
+    {
+        try {
+            return $fn();
+        } catch (\Throwable $e) {
+            self::logException($e, $level, array_merge($context, [
+                'wrapped' => true,
+            ]));
+            throw $e;
+        }
+    }
+
     /**
      * Log an error to the error_logs table
      *
@@ -19,6 +45,7 @@ class ErrorLogService
      */
     public static function log($error, $level = 'error', $context = [])
     {
+        $message = '';
         try {
             // Get user ID if authenticated
             $userId = null;
@@ -37,14 +64,17 @@ class ErrorLogService
             $file = null;
             $line = null;
             $trace = null;
+            $exceptionType = null;
 
             if ($error instanceof \Throwable) {
                 $message = $error->getMessage();
                 $file = $error->getFile();
                 $line = $error->getLine();
                 $trace = $error->getTraceAsString();
+                $exceptionType = get_class($error);
             } else {
                 $message = (string) $error;
+                $exceptionType = isset($context['exception_class']) ? $context['exception_class'] : null;
             }
 
             // Get request information (safely)
@@ -52,9 +82,10 @@ class ErrorLogService
             $method = null;
             $ipAddress = null;
             try {
-                $url = Request::fullUrl();
-                $method = Request::method();
-                $ipAddress = Request::ip();
+                $req = request();
+                $url = $req->fullUrl();
+                $method = $req->method();
+                $ipAddress = $req->ip();
             } catch (\Exception $e) {
                 // If request is not available (e.g., in console), use defaults
                 $url = 'N/A';
@@ -66,8 +97,12 @@ class ErrorLogService
             $requestData = [];
             $headers = [];
             try {
-                $requestData = Request::all();
-                $headers = Request::headers->all();
+                $req = request();
+                // Avoid accidentally logging sensitive fields
+                $requestData = method_exists($req, 'except')
+                    ? $req->except(['password', 'password_confirmation', 'current_password'])
+                    : [];
+                $headers = $req->headers->all();
             } catch (\Exception $e) {
                 // If request is not available, use empty arrays
             }
@@ -77,8 +112,8 @@ class ErrorLogService
                 'headers' => $headers,
             ]);
 
-            // Create error log entry
-            $errorLog = ErrorLog::create([
+            // Create error log entry (backward compatible with existing schemas)
+            $insert = [
                 'level' => $level,
                 'message' => $message,
                 'context' => $contextData,
@@ -89,7 +124,17 @@ class ErrorLogService
                 'url' => $url,
                 'method' => $method,
                 'ip_address' => $ipAddress,
-            ]);
+            ];
+
+            try {
+                if (Schema::hasTable('error_logs') && Schema::hasColumn('error_logs', 'exception_type')) {
+                    $insert['exception_type'] = $exceptionType;
+                }
+            } catch (\Throwable $schemaErr) {
+                // If schema inspection fails, continue without exception_type.
+            }
+
+            $errorLog = ErrorLog::create($insert);
 
             // Also log to Laravel's default log
             Log::log($level, $message, [
