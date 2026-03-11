@@ -639,8 +639,8 @@ class AuthApiServiceController extends Controller
 
         try {
             // Fetch HRMS user data (same logic as getHRMSUserDataBackend)
-            $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
-            //   $hrmsApiUrl = config('services.hrms.api_url', 'https://172.17.2.45/hrms-External/housing/fetchEmployeeDetails');
+            // $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
+              $hrmsApiUrl = config('services.hrms.api_url', 'https://172.17.2.45/hrms-External/housing/fetchEmployeeDetails');
             $requestData = [
                 'req' => [
                     'hrmsId' => $hrmsId

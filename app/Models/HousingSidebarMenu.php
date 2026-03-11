@@ -83,7 +83,8 @@ class HousingSidebarMenu extends Model
     public function scopeForRoles($query, array $roleIds)
     {
         return $query->whereHas('roles', function ($q) use ($roleIds) {
-            $q->whereIn('roles.id', $roleIds);
+            // Use 'rid' since roles primary key has been renamed
+            $q->whereIn('roles.rid', $roleIds);
         });
     }
 }

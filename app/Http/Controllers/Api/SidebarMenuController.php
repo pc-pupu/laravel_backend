@@ -27,7 +27,8 @@ class SidebarMenuController extends Controller
 
         // \Log::info('Fetching sidebar menus for user ID: ' . $user);
         // Get user's role IDs
-        $roleIds = $user->roles()->pluck('id')->toArray();
+        // Qualify column: both roles and user_role have 'rid', so use roles.rid
+        $roleIds = $user->roles()->pluck('roles.rid')->toArray();
 
         if (empty($roleIds)) {
             return response()->json([
@@ -101,7 +102,7 @@ class SidebarMenuController extends Controller
                     'route_params' => $menu->route_params ?? [],
                     'roles' => $menu->roles->map(function ($role) {
                         return [
-                            'id' => $role->id,
+                            'id' => $role->rid,
                             'name' => $role->name,
                         ];
                     })->toArray(),

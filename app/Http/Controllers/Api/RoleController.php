@@ -80,7 +80,7 @@ class RoleController extends Controller
                 } else {
                     $role->permissions()->sync([]);
                 }
-            }, ['module' => 'roles', 'action' => 'permissions_sync', 'role_id' => $role->id]);
+            }, ['module' => 'roles', 'action' => 'permissions_sync', 'role_id' => $role->rid]);
 
             $role->load('permissions', 'users');
         } catch (\Throwable $e) {
@@ -139,7 +139,7 @@ class RoleController extends Controller
                 'required', 'string', 'max:255',
                 Rule::unique('roles')->where(function ($q) use ($guardName) {
                     return $q->where('guard_name', $guardName);
-                })->ignore($role->id)
+                })->ignore($role->rid, 'rid')
             ],
             'guard_name' => 'nullable|string|max:255',
             'permissions'=> 'nullable|array',
@@ -161,7 +161,7 @@ class RoleController extends Controller
                 $role->guard_name = $request->guard_name ?? $role->guard_name;
                 $role->is_active = $request->has('is_active') ? $request->is_active : $role->is_active;
                 $role->save();
-            }, ['module' => 'roles', 'action' => 'update', 'role_id' => $role->id]);
+            }, ['module' => 'roles', 'action' => 'update', 'role_id' => $role->rid]);
 
             // Sync permissions
             ErrorLogService::wrap(function () use ($role, $request) {
@@ -170,7 +170,7 @@ class RoleController extends Controller
                 } else {
                     $role->permissions()->sync([]);
                 }
-            }, ['module' => 'roles', 'action' => 'permissions_sync', 'role_id' => $role->id]);
+            }, ['module' => 'roles', 'action' => 'permissions_sync', 'role_id' => $role->rid]);
 
             $role->load('permissions', 'users');
         } catch (\Throwable $e) {
@@ -204,7 +204,7 @@ class RoleController extends Controller
         try {
             ErrorLogService::wrap(function () use ($role) {
                 $role->delete();
-            }, ['module' => 'roles', 'action' => 'delete', 'role_id' => $role->id]);
+            }, ['module' => 'roles', 'action' => 'delete', 'role_id' => $role->rid]);
         } catch (\Throwable $e) {
             return response()->json([
                 'status'  => 'error',

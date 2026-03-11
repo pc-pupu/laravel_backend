@@ -182,7 +182,7 @@ class DashboardController extends Controller
     {
         $output = [];
 
-        $roleName = DB::table('roles')->where('id', $userRole)->value('name') ?? 'User';
+        $roleName = DB::table('roles')->where('rid', $userRole)->value('name') ?? 'User';
 
         // Role 11: DDO
         if ($userRole == 11) {
@@ -503,9 +503,9 @@ class DashboardController extends Controller
 
         // ========== LIVE PRODUCTION - HRMS API CALL ==========
         try {
-            $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
+            // $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
             // \Log::info('HRMS API URL', ['url' => $hrmsApiUrl]);
-            // $hrmsApiUrl = config('services.hrms.api_url', 'https://172.17.2.45/hrms-External/housing/fetchEmployeeDetails'); // Internal IP (for Live)
+            $hrmsApiUrl = config('services.hrms.api_url', 'https://172.17.2.45/hrms-External/housing/fetchEmployeeDetails'); // Internal IP (for Live)
             $requestData = [
                 'req' => [
                     'hrmsId' => $hrmsId
