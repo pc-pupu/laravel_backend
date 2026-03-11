@@ -88,7 +88,7 @@ class AuthController extends Controller
         $user_role = DB::table('user_role')
             ->where('uid', $user->uid)
             ->select('rid')->first();
-
+        
         return response()->json([
             'status' => 'success',
             'message' => 'Login successful',

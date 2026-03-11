@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class Role extends Model
 {
     protected $table = 'roles';
-    protected $primaryKey = 'id';
+    // Database primary key column is now 'rid' instead of 'id'
+    protected $primaryKey = 'rid';
     public $incrementing = true;
     public $timestamps = true;
 
