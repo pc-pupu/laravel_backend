@@ -22,11 +22,11 @@ class DashboardController extends Controller
             $uid = $request->input('uid');
             $username = $request->input('username');
             $userType = $request->input('user_type'); // Cookie value
-            // \Log::info('Dashboard Request', [
-            //     'uid' => $uid,
-            //     'username' => $username,
-            //     'user_type' => $userType
-            // ]);
+            \Log::info('Dashboard Request', [
+                'uid' => $uid,
+                'username' => $username,
+                'user_type' => $userType
+            ]);
 
             if (!$uid || !$username) {
                 return response()->json([
@@ -89,12 +89,12 @@ class DashboardController extends Controller
     private function getApplicantDashboardData($uid, $username, $userRole, $userType = null)
     {
         $output = [];
-        // \Log::info('Fetching applicant dashboard data', [
-        //     'uid' => $uid,
-        //     'username' => $username,
-        //     'user_role' => $userRole,
-        //     'user_type' => $userType
-        // ]);
+        \Log::info('Fetching applicant dashboard data', [
+            'uid' => $uid,
+            'username' => $username,
+            'user_role' => $userRole,
+            'user_type' => $userType
+        ]);
         // Role 4 specific logic
         if ($userRole == 4 && $userType !== 'new') {
             // Check HRMS tagging
@@ -516,13 +516,14 @@ class DashboardController extends Controller
                 ->withOptions([
                     'verify' => false,
                 ])
+                ->acceptJson()
+                ->asJson()
                 ->post($hrmsApiUrl, $requestData);
 
             if (!$response->successful()) {
                 Log::error('HRMS API Error', [
                     'hrms_id' => $hrmsId,
                     'status' => $response->status(),
-                    'response' => $response->body()
                 ]);
                 return $this->getDefaultData($hrmsId);
             }
@@ -534,7 +535,8 @@ class DashboardController extends Controller
                 empty($responseData['resp']['data'])) {
                 Log::error('HRMS API Invalid Response', [
                     'hrms_id' => $hrmsId,
-                    'response' => $responseData
+                    'err' => $responseData['resp']['errDesc'] ?? null,
+                    'code' => $responseData['resp']['errCode'] ?? null,
                 ]);
                 return $this->getDefaultData($hrmsId);
             }
