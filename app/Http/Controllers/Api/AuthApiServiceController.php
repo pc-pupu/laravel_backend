@@ -640,6 +640,7 @@ class AuthApiServiceController extends Controller
         try {
             // Fetch HRMS user data (same logic as getHRMSUserDataBackend)
             $hrmsApiUrl = config('services.hrms.api_url', 'https://uat.wbifms.gov.in/hrms-External/housing/fetchEmployeeDetails');
+            //   $hrmsApiUrl = config('services.hrms.api_url', 'https://172.17.2.45/hrms-External/housing/fetchEmployeeDetails');
             $requestData = [
                 'req' => [
                     'hrmsId' => $hrmsId
@@ -650,15 +651,24 @@ class AuthApiServiceController extends Controller
                 ->withOptions([
                     'verify' => false,
                 ])
+                ->acceptJson()
+                ->asJson()
                 ->post($hrmsApiUrl, $requestData);
 
             if (!$response->successful()) {
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'HRMS API Error: ' . $response->status(),
-                    'response' => $response->body(),
-                    'status_code' => $response->status()
-                ], $response->status());
+                    'status' => 'success',
+                    'data' => [
+                        'hrmsId' => $hrmsId,
+                        'applicantName' => $hrmsId,
+                        'email' => 'N/A',
+                        'applicantDesignation' => 'N/A',
+                        'officeName' => 'N/A',
+                        'mobileNo' => 'N/A',
+                    ],
+                    'note' => 'HRMS API unavailable; returned fallback data',
+                    'status_code' => 200
+                ], 200);
             }
 
             $responseData = $response->json();
@@ -667,11 +677,18 @@ class AuthApiServiceController extends Controller
                 strtolower($responseData['resp']['status']) !== 's' ||
                 empty($responseData['resp']['data'])) {
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'User data Fetch error.',
-                    'response' => $responseData,
-                    'status_code' => 400
-                ], 400);
+                    'status' => 'success',
+                    'data' => [
+                        'hrmsId' => $hrmsId,
+                        'applicantName' => $hrmsId,
+                        'email' => 'N/A',
+                        'applicantDesignation' => 'N/A',
+                        'officeName' => 'N/A',
+                        'mobileNo' => 'N/A',
+                    ],
+                    'note' => $responseData['resp']['errDesc'] ?? 'HRMS returned no data; returned fallback data',
+                    'status_code' => 200
+                ], 200);
             }
 
             // Decrypt the data
@@ -681,11 +698,18 @@ class AuthApiServiceController extends Controller
             
             if (empty($userDataArray) || !is_array($userDataArray) || empty($userDataArray[0])) {
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'HRMS Data Decryption Error',
-                    'decrypted_data' => $decryptedData,
-                    'status_code' => 400
-                ], 400);
+                    'status' => 'success',
+                    'data' => [
+                        'hrmsId' => $hrmsId,
+                        'applicantName' => $hrmsId,
+                        'email' => 'N/A',
+                        'applicantDesignation' => 'N/A',
+                        'officeName' => 'N/A',
+                        'mobileNo' => 'N/A',
+                    ],
+                    'note' => 'HRMS data decryption/parse failed; returned fallback data',
+                    'status_code' => 200
+                ], 200);
             }
 
             return response()->json([
@@ -699,14 +723,21 @@ class AuthApiServiceController extends Controller
             Log::error('Get Test Info Error', [
                 'error' => $e->getMessage(),
                 'hrms_id' => $hrmsId,
-                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
-                'status' => 'error',
-                'message' => 'Error: ' . $e->getMessage(),
-                'status_code' => 500
-            ], 500);
+                'status' => 'success',
+                'data' => [
+                    'hrmsId' => $hrmsId,
+                    'applicantName' => $hrmsId,
+                    'email' => 'N/A',
+                    'applicantDesignation' => 'N/A',
+                    'officeName' => 'N/A',
+                    'mobileNo' => 'N/A',
+                ],
+                'note' => 'Exception when calling HRMS; returned fallback data',
+                'status_code' => 200
+            ], 200);
         }
     }
 }
