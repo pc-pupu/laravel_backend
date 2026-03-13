@@ -9,6 +9,15 @@ use App\Services\ErrorLogService;
 
 class AddFlatBlockController extends Controller
 {
+    public function fetchFlatBlock() // added by Subham dt.12-03-2026
+    {
+        // Fetch all blocks to show in the list
+        $blocks = DB::table('housing_block')->orderBy('block_name')->get();
+
+        // Return as JSON for frontend consumption
+        return response()->json($blocks);
+    }
+
     public function storeFlatBlock(Request $request)
     {
         $validated = $request->validate([
