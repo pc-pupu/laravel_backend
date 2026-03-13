@@ -113,6 +113,7 @@ Route::get('/rhe-allotment/show-vacancy', [RheAllotmentController::class, 'showV
 Route::post('/rhe-allotment/process', [RheAllotmentController::class, 'processAllotment']);
 
 Route::post('/block/add', [AddFlatBlockController::class, 'storeFlatBlock']); // Added by Subham dt.20-01-2026
+Route::get('/block/list', [AddFlatBlockController::class, 'fetchFlatBlock']); // Added by Subham dt.12-03-2026
 
 // Protected routes (continued)
 Route::middleware('auth:sanctum')->group(function () {
