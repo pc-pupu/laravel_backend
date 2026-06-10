@@ -15,7 +15,7 @@ class ProcessFlowService
      * @return bool
      * @throws \Exception
      */
-    public static function insertProcessFlow($onlineApplicationId, $shortCode, $uid)
+    public static function insertProcessFlow($onlineApplicationId, $shortCode, $uid, $remarks = null)
     {
         // Get status data from housing_allotment_status_master
         $statusData = DB::table('housing_allotment_status_master')
@@ -26,15 +26,21 @@ class ProcessFlowService
             throw new \Exception("Status with short_code '{$shortCode}' not found");
         }
 
-        // Insert into process flow
-        return DB::table('housing_process_flow')->insert([
+        $data = [
             'online_application_id' => $onlineApplicationId,
             'status_id' => $statusData->status_id,
             'created_at' => now(),
             'uid' => $uid,
             'short_code' => $shortCode,
             'status_weight' => $statusData->weight,
-        ]);
+        ];
+
+        if ($remarks !== null) {
+            $data['remarks'] = $remarks;
+        }
+
+        // Insert into process flow
+        return DB::table('housing_process_flow')->insert($data);
     }
 
     /**

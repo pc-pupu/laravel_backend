@@ -21,18 +21,14 @@ class NotificationService
 
             // Server settings
             $mail->isSMTP();
-            
-            if ($otp == 'otp') {
-                $mail->Host = '164.100.2.239'; // https://otprelay.nic.in
-            } else {
-                $mail->Host = '164.100.13.55'; // https://smtpsgwhyd.nic.in
-            }
-            
-            $mail->Port = 465;
-            $mail->SMTPSecure = 'tls';
+
+            $cfg = config('services.notification_gateways.smtp');
+            $mail->Host = ($otp === 'otp' ? ($cfg['host_otp'] ?? null) : null) ?: ($cfg['host'] ?? null);
+            $mail->Port = $cfg['port'] ?? 465;
+            $mail->SMTPSecure = $cfg['secure'] ?? 'tls';
             $mail->SMTPAuth = true;
-            $mail->Username = 'noreply-eallotment@bangla.gov.in';
-            $mail->Password = 'G2#pS2@uW7';
+            $mail->Username = $cfg['username'] ?? null;
+            $mail->Password = $cfg['password'] ?? null;
             $mail->SMTPDebug = 0;
             $mail->Debugoutput = 'html';
 
@@ -45,7 +41,16 @@ class NotificationService
             ];
 
             // Sender & recipient
-            $mail->setFrom('noreply-eallotment@bangla.gov.in', 'Noreply e-Allotment');
+            $fromEmail = $cfg['from_email'] ?? null;
+            $fromName = $cfg['from_name'] ?? 'Noreply e-Allotment';
+            if (!$fromEmail) {
+                throw new \RuntimeException('SMTP FROM email not configured.');
+            }
+            if (!$mail->Host || !$mail->Username || !$mail->Password) {
+                throw new \RuntimeException('SMTP gateway is not configured.');
+            }
+
+            $mail->setFrom($fromEmail, $fromName);
             $mail->addAddress($to);
 
             // Content
@@ -81,12 +86,16 @@ class NotificationService
     public function sendSms($dest, $msg, $templateId = '')
     {
         try {
-            $uid = 'wbhousing.sms';
-            $pass = 'bJoddiHP';
-            $send = 'RHE';
-            $url = "https://smsgw.sms.gov.in/failsafe/HttpLink?";
-            
-            $data = "username=$uid&pin=$pass&message=$msg&mnumber=$dest&signature=$send&dlt_entity_id=1101589480000043999&dlt_template_id=$templateId";
+            $cfg = config('services.notification_gateways.sms');
+            $uid = $cfg['username'] ?? null;
+            $pass = $cfg['pin'] ?? null;
+            $send = $cfg['signature'] ?? 'RHE';
+            $url = $cfg['url'] ?? "https://smsgw.sms.gov.in/failsafe/HttpLink?";
+            $entityId = $cfg['dlt_entity_id'] ?? '1101589480000043999';
+
+            if (!$uid || !$pass) {
+                throw new \RuntimeException('SMS gateway is not configured.');
+            }
 
             $response = Http::timeout(30)
                 ->withOptions([
@@ -99,7 +108,7 @@ class NotificationService
                     'message' => $msg,
                     'mnumber' => $dest,
                     'signature' => $send,
-                    'dlt_entity_id' => '1101589480000043999',
+                    'dlt_entity_id' => $entityId,
                     'dlt_template_id' => $templateId,
                 ]);
 

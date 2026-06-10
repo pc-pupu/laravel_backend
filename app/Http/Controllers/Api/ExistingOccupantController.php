@@ -59,7 +59,7 @@ class ExistingOccupantController extends Controller
             $search = strtolower($request->input('search'));
             $query->where(function ($q) use ($search) {
                 $q->whereRaw('LOWER(ha.applicant_name) LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw('LOWER(haod.hrms_id) LIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('LOWER(CAST(haod.hrms_id AS TEXT)) LIKE ?', ["%{$search}%"])
                     ->orWhereRaw('LOWER(he.estate_name) LIKE ?', ["%{$search}%"]);
             });
         }
@@ -500,12 +500,236 @@ class ExistingOccupantController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // Update logic - similar to store but for existing records
-        // This is complex and should be implemented based on existing_occupant_edit_form_submit
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Update functionality to be fully implemented based on Drupal edit form logic.',
-        ], 501);
+        $validator = Validator::make($request->all(), [
+            'flat_id' => 'required|integer|exists:housing_flat,flat_id',
+            'occupant_name' => 'required|string|max:255',
+            'occupant_father_name' => 'required|string|max:255',
+            'hrms_id' => 'required|string|max:10',
+            'email' => 'required|email',
+            'mobile' => 'required|string|max:10',
+            'dob' => 'required|string',
+            'gender' => 'required|in:M,F',
+            'occupant_designation' => 'required|string',
+            'pay_band' => 'required|integer',
+            'pay_in' => 'required|numeric',
+            'doj' => 'required|string',
+            'dor' => 'required|string',
+            'ddo_id' => 'required|integer',
+            'license_no' => 'required|string',
+            'dol' => 'required|string', // Date of license
+            'authorised_or_not' => 'required|string',
+            'permanent_street' => 'required|string',
+            'permanent_city_town_village' => 'required|string',
+            'permanent_post_office' => 'required|string',
+            'permanent_district' => 'required|string',
+            'permanent_pincode' => 'required|string|max:6',
+            'present_street' => 'required|string',
+            'present_city_town_village' => 'required|string',
+            'present_post_office' => 'required|string',
+            'present_district' => 'required|string',
+            'present_pincode' => 'required|string|max:6',
+            'office_name' => 'required|string',
+            'office_street' => 'required|string',
+            'office_city' => 'required|string',
+            'office_post_office' => 'required|string',
+            'office_district' => 'required|string',
+            'office_pincode' => 'required|string|max:6',
+            'office_phone_no' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // $id is UID (consistent with show()/destroy())
+        $uid = (int) $id;
+
+        // Lookup existing occupant record graph
+        $existing = DB::table('housing_applicant_official_detail as haod')
+            ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
+            ->join('housing_flat_occupant as hfo', 'hfo.online_application_id', '=', 'hoa.online_application_id')
+            ->where('haod.uid', $uid)
+            ->where('hoa.status', 'existing_occupant')
+            ->select([
+                'haod.housing_applicant_id',
+                'haod.applicant_official_detail_id',
+                'haod.hrms_id',
+                'hoa.online_application_id',
+                'hfo.flat_occupant_id',
+                'hfo.flat_id',
+            ])
+            ->first();
+
+        if (!$existing) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Occupant not found.',
+            ], 404);
+        }
+
+        // Uniqueness checks (exclude current UID)
+        $hrmsExists = DB::table('housing_applicant_official_detail')
+            ->where('hrms_id', trim($request->input('hrms_id')))
+            ->where('uid', '!=', $uid)
+            ->exists();
+        if ($hrmsExists) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'This Employee HRMS ID already exists.',
+            ], 422);
+        }
+
+        $emailExists = DB::table('users')
+            ->where('mail', strtolower(trim($request->input('email'))))
+            ->where('uid', '!=', $uid)
+            ->exists();
+        if ($emailExists) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'This email address already exists.',
+            ], 422);
+        }
+
+        // Flat occupancy check if changing flat
+        $newFlatId = (int) $request->input('flat_id');
+        $oldFlatId = (int) $existing->flat_id;
+        if ($newFlatId !== $oldFlatId) {
+            $flatOccupied = DB::table('housing_flat_occupant')
+                ->where('flat_id', $newFlatId)
+                ->where('flat_occupant_id', '!=', $existing->flat_occupant_id)
+                ->exists();
+
+            if ($flatOccupied) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'This flat already has an occupant.',
+                ], 422);
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            // Update user record
+            $newUsername = trim($request->input('hrms_id'));
+            DB::table('users')
+                ->where('uid', $uid)
+                ->update([
+                    'name' => $newUsername,
+                    'mail' => strtolower(trim($request->input('email'))),
+                    'updated_at' => now(),
+                ]);
+
+            // Update housing_applicant
+            $dobFormatted = $this->formatDate($request->input('dob'));
+            DB::table('housing_applicant')
+                ->where('housing_applicant_id', $existing->housing_applicant_id)
+                ->update([
+                    'applicant_name' => strtoupper(trim($request->input('occupant_name'))),
+                    'guardian_name' => strtoupper(trim($request->input('occupant_father_name'))),
+                    'date_of_birth' => $dobFormatted ?: '1900-01-01',
+                    'gender' => $request->input('gender'),
+                    'mobile_no' => trim($request->input('mobile')),
+                    'permanent_street' => strtoupper(trim($request->input('permanent_street'))),
+                    'permanent_city_town_village' => strtoupper(trim($request->input('permanent_city_town_village'))),
+                    'permanent_post_office' => strtoupper(trim($request->input('permanent_post_office'))),
+                    'permanent_district' => trim($request->input('permanent_district')),
+                    'permanent_pincode' => trim($request->input('permanent_pincode')),
+                    'present_street' => strtoupper(trim($request->input('present_street'))),
+                    'present_city_town_village' => strtoupper(trim($request->input('present_city_town_village'))),
+                    'present_post_office' => strtoupper(trim($request->input('present_post_office'))),
+                    'present_district' => trim($request->input('present_district')),
+                    'present_pincode' => trim($request->input('present_pincode')),
+                ]);
+
+            // Update official detail
+            $dojFormatted = $this->formatDate($request->input('doj'));
+            $dorFormatted = $this->formatDate($request->input('dor'));
+            DB::table('housing_applicant_official_detail')
+                ->where('applicant_official_detail_id', $existing->applicant_official_detail_id)
+                ->update([
+                    'ddo_id' => $request->input('ddo_id'),
+                    'hrms_id' => $newUsername,
+                    'applicant_designation' => strtoupper(trim($request->input('occupant_designation'))),
+                    'applicant_posting_place' => strtoupper(trim($request->input('occupant_posting_place', ''))),
+                    'applicant_headquarter' => strtoupper(trim($request->input('occupant_headquarter', ''))),
+                    'pay_band_id' => $request->input('pay_band'),
+                    'pay_in_the_pay_band' => trim($request->input('pay_in')),
+                    'date_of_joining' => $dojFormatted,
+                    'date_of_retirement' => $dorFormatted,
+                    'office_name' => strtoupper(trim($request->input('office_name'))),
+                    'office_street' => strtoupper(trim($request->input('office_street'))),
+                    'office_city_town_village' => strtoupper(trim($request->input('office_city'))),
+                    'office_post_office' => strtoupper(trim($request->input('office_post_office'))),
+                    'office_district' => trim($request->input('office_district')),
+                    'office_pin_code' => trim($request->input('office_pincode')),
+                    'office_phone_no' => trim($request->input('office_phone_no', '')),
+                ]);
+
+            // Update flat occupancy mapping + flat status if flat changed
+            if ($newFlatId !== $oldFlatId) {
+                DB::table('housing_flat_occupant')
+                    ->where('flat_occupant_id', $existing->flat_occupant_id)
+                    ->update([
+                        'flat_id' => $newFlatId,
+                    ]);
+
+                // Old flat becomes vacant
+                DB::table('housing_flat')
+                    ->where('flat_id', $oldFlatId)
+                    ->update(['flat_status_id' => 1]);
+
+                // New flat becomes occupied
+                DB::table('housing_flat')
+                    ->where('flat_id', $newFlatId)
+                    ->update(['flat_status_id' => 2]);
+
+                // Update flat_type_id in housing_new_allotment_application (if present)
+                $flat = DB::table('housing_flat')->where('flat_id', $newFlatId)->first();
+                if ($flat) {
+                    DB::table('housing_new_allotment_application')
+                        ->where('online_application_id', $existing->online_application_id)
+                        ->update(['flat_type_id' => $flat->flat_type_id]);
+                }
+            }
+
+            // Update occupant license details
+            $dolFormatted = $this->formatDate($request->input('dol'));
+            $licenseExpiry = $dolFormatted ? date('Y-m-d', strtotime($dolFormatted . '+3 years -1 day')) : null;
+            DB::table('housing_occupant_license')
+                ->where('flat_occupant_id', $existing->flat_occupant_id)
+                ->update([
+                    'license_issue_date' => $dolFormatted,
+                    'license_expiry_date' => $licenseExpiry,
+                    'existing_occupant_license_no' => trim($request->input('license_no')),
+                    'authorised_or_not' => trim($request->input('authorised_or_not')),
+                ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Occupant updated successfully.',
+                'data' => [
+                    'uid' => $uid,
+                    'online_application_id' => $existing->online_application_id,
+                ],
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('ExistingOccupant update error', [
+                'uid' => $uid,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

@@ -607,7 +607,7 @@ class SpecialRecommendationController extends Controller
             'rhe_id' => 'required|integer',
             'flat_type_id' => 'required|integer',
             'block_id' => 'required|integer',
-            'floor_no' => 'required|integer',
+            'floor_no' => 'required|string',
             'flat_id' => 'required|integer',
         ]);
 
@@ -822,7 +822,6 @@ class SpecialRecommendationController extends Controller
             $flatTypes = DB::table('housing_flat_type as hft')
                 ->join('housing_flat as hf', 'hf.flat_type_id', '=', 'hft.flat_type_id')
                 ->where('hf.estate_id', $rheId)
-                ->where('hf.flat_status_id', 1) // Available
                 ->distinct()
                 ->select('hft.flat_type_id', 'hft.flat_type')
                 ->orderBy('hft.flat_type', 'asc')
@@ -830,7 +829,7 @@ class SpecialRecommendationController extends Controller
                 ->map(function ($item) {
                     return [
                         'value' => $item->flat_type_id,
-                        'label' => $item->flat_type
+                        'label' => trim($item->flat_type),
                     ];
                 });
 
@@ -865,7 +864,6 @@ class SpecialRecommendationController extends Controller
                 ->join('housing_flat as hf', 'hf.block_id', '=', 'hb.block_id')
                 ->where('hf.estate_id', $rheId)
                 ->where('hf.flat_type_id', $flatTypeId)
-                ->where('hf.flat_status_id', 1) // Available
                 ->distinct()
                 ->select('hb.block_id', 'hb.block_name')
                 ->orderBy('hb.block_name', 'asc')
@@ -908,15 +906,14 @@ class SpecialRecommendationController extends Controller
                 ->where('estate_id', $rheId)
                 ->where('flat_type_id', $flatTypeId)
                 ->where('block_id', $blockId)
-                ->where('flat_status_id', 1) // Available
                 ->distinct()
-                ->select('floor_no')
-                ->orderBy('floor_no', 'asc')
+                ->select('floor')
+                ->orderBy('floor', 'asc')
                 ->get()
                 ->map(function ($item) {
                     return [
-                        'value' => $item->floor_no,
-                        'label' => $item->floor_no
+                        'value' => $item->floor,
+                        'label' => $item->floor
                     ];
                 });
 
@@ -951,8 +948,8 @@ class SpecialRecommendationController extends Controller
                 ->where('estate_id', $rheId)
                 ->where('flat_type_id', $flatTypeId)
                 ->where('block_id', $blockId)
-                ->where('floor_no', $floorNo)
-                ->where('flat_status_id', 1) // Available
+                ->where('floor', $floorNo)
+                ->where('flat_status_id', 1) // Available flats only
                 ->select('flat_id', 'flat_no')
                 ->orderBy('flat_no', 'asc')
                 ->get()

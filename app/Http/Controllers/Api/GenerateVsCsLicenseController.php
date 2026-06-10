@@ -7,9 +7,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Services\NotificationService;
 
 class GenerateVsCsLicenseController extends Controller
 {
+    public function __construct(private readonly NotificationService $notificationService)
+    {
+    }
     /**
      * Get VS/CS license list (for admin/official)
      * GET /api/generate-vs-cs-license/list
@@ -359,11 +363,11 @@ class GenerateVsCsLicenseController extends Controller
 
             // Send email notification (if email exists)
             if ($userData && !empty($userData->email)) {
-                // TODO: Implement email sending
-                Log::info('License uploaded notification', [
-                    'email' => $userData->email,
-                    'license_no' => $request->license_no
-                ]);
+                $this->notificationService->sendMail(
+                    $userData->email,
+                    'Signed Licence Uploaded',
+                    'Your signed shifting licence has been uploaded successfully. Please log in to view/download.'
+                );
             }
 
             return response()->json([

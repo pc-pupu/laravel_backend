@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use App\Helpers\AuthEncryptionHelper;
 use Illuminate\Support\Facades\Http;
 use App\Services\ErrorLogService;
@@ -22,11 +23,11 @@ class DashboardController extends Controller
             $uid = $request->input('uid');
             $username = $request->input('username');
             $userType = $request->input('user_type'); // Cookie value
-            \Log::info('Dashboard Request', [
-                'uid' => $uid,
-                'username' => $username,
-                'user_type' => $userType
-            ]);
+            // \Log::info('Dashboard Request', [
+            //     'uid' => $uid,
+            //     'username' => $username,
+            //     'user_type' => $userType
+            // ]);
 
             if (!$uid || !$username) {
                 return response()->json([
@@ -57,7 +58,7 @@ class DashboardController extends Controller
             if (in_array($userRole, [4, 5])) {
                 // Applicant Dashboard
                 $output = array_merge($output, $this->getApplicantDashboardData($uid, $username, $userRole, $userType));
-            } elseif (in_array($userRole, [6, 7, 8, 10, 11, 13, 17])) {
+            } elseif (in_array($userRole, [3, 6, 7, 8, 10, 11, 13, 17, 18])) {
                 // Admin Dashboard
                 $output = array_merge($output, $this->getAdminDashboardData($uid, $username, $userRole));
             }
@@ -146,7 +147,7 @@ class DashboardController extends Controller
             ->select('hoa.status')
             ->first();
 
-        $output['user_status'] = $userStatus->status ?? '';
+        $output['user_status'] = $userStatus?->status ?? '';
 
         // Get all application data
         $output['all-application-data'] = $this->getAllApplicationDetails($uid);
@@ -308,25 +309,42 @@ class DashboardController extends Controller
      */
     private function getAllApplicationDetails($uid)
     {
+        $hasApplicantShowStatus = Schema::hasColumn('housing_allotment_status_master', 'applicant_show_status');
+
+        $select = [
+            'hoa.application_no',
+            'hoa.date_of_application',
+            'hoa.online_application_id',
+            'haod.applicant_designation',
+            'ha.applicant_name',
+            'hasm.status_description',
+            'hasm.status_id',
+            'hnaa.extra_doc_path',
+            'hnaa.allotment_category',
+        ];
+
+        if ($hasApplicantShowStatus) {
+            $select[] = 'hasm.applicant_show_status';
+        }
+
         return DB::table('housing_applicant_official_detail as haod')
             ->join('housing_applicant as ha', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
             ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
             ->join('housing_allotment_status_master as hasm', 'hasm.short_code', '=', 'hoa.status')
             ->leftJoin('housing_new_allotment_application as hnaa', 'hnaa.online_application_id', '=', 'hoa.online_application_id')
             ->where('haod.uid', $uid)
-            ->select(
-                'hoa.application_no',
-                'hoa.date_of_application',
-                'hoa.online_application_id',
-                'haod.applicant_designation',
-                'ha.applicant_name',
-                'hasm.status_description',
-                'hasm.status_id',
-                'hnaa.extra_doc_path',
-                'hnaa.allotment_category'
-            )
-            ->orderBy('hoa.status', 'ASC')
-            ->get();
+            ->select($select)
+            ->orderBy('hoa.online_application_id', 'DESC')
+            ->get()
+            ->map(function ($row) use ($hasApplicantShowStatus) {
+                if ($hasApplicantShowStatus && !empty($row->applicant_show_status)) {
+                    $row->status_description = $row->applicant_show_status;
+                }
+
+                return $row;
+            })
+            ->unique('online_application_id')
+            ->values();
     }
 
     /**

@@ -20,6 +20,14 @@ class StatusService
     }
 
     /**
+     * Applicant-facing status label (Drupal uses applicant_show_status since Feb 2026).
+     */
+    public static function getApplicantDisplayStatus($shortCode): ?string
+    {
+        return WaitingNumberService::getDisplayStatusForShortCode($shortCode);
+    }
+
+    /**
      * Get status ID by short code
      *
      * @param string $shortCode

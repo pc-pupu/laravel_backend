@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use App\Services\ProcessFlowService;
 use App\Services\ErrorLogService;
-use App\Services\ErrorLogService;
 
 class RheAllotmentService
 {
