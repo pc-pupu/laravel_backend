@@ -361,7 +361,22 @@ class DdoController extends Controller
                 )
                 ->orderBy('hd.ddo_id', 'ASC');
 
-            $ddoList = $query->get();
+            if ($request->filled('search')) {
+                $search = trim($request->input('search'));
+                $query->where(function ($q) use ($search) {
+                    $q->where('hd.ddo_code', 'like', '%' . $search . '%')
+                        ->orWhere('hd.ddo_designation', 'like', '%' . $search . '%')
+                        ->orWhere('hds.district_name', 'like', '%' . $search . '%')
+                        ->orWhere('ht.treasury_name', 'like', '%' . $search . '%');
+                });
+            }
+
+            $perPage = (int) $request->input('per_page', 10);
+            if (!in_array($perPage, [10, 25, 50, 100], true)) {
+                $perPage = 10;
+            }
+
+            $ddoList = $query->paginate($perPage);
 
             return response()->json([
                 'status' => 'success',

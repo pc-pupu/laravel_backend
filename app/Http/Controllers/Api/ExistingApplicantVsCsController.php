@@ -594,7 +594,7 @@ class ExistingApplicantVsCsController extends Controller
 
         if ($rheName != 0 && $flatType != 0) {
             $query->where('hf.estate_id', $rheName)
-                ->where('hf.flat_type_id', $flatType);
+                ->where('hca.flat_type_id', $flatType);
         }
 
         $applications = $query->select([
@@ -665,7 +665,7 @@ class ExistingApplicantVsCsController extends Controller
 
         if ($rheName != 0 && $flatType != 0) {
             $query->where('hf.estate_id', $rheName)
-                ->where('hf.flat_type_id', $flatType);
+                ->where('hca.flat_type_id', $flatType);
         }
 
         $applications = $query->select([

@@ -7,7 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 use App\Services\ProcessFlowService;
+use App\Services\WaitingNumberService;
 
 class ApplicationStatusController extends Controller
 {
@@ -20,36 +22,23 @@ class ApplicationStatusController extends Controller
         try {
             $uid = $request->input('uid'); // Optional: for user-specific filtering
 
-            $query = DB::table('housing_applicant_official_detail as haod')
+            $ownsApplication = DB::table('housing_applicant_official_detail as haod')
                 ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
-                ->leftJoin('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id')
-                ->leftJoin('housing_vs_application as hva', 'hva.online_application_id', '=', 'hoa.online_application_id')
-                ->leftJoin('housing_cs_application as hca', 'hca.online_application_id', '=', 'hoa.online_application_id')
-                ->leftJoin('housing_license_application as hla', 'hla.online_application_id', '=', 'hoa.online_application_id')
-                ->leftJoin('housing_process_flow as hpf', 'hpf.online_application_id', '=', 'hoa.online_application_id')
-                ->leftJoin('housing_allotment_status_master as hasm', 'hasm.short_code', '=', 'hpf.short_code')
-                ->where('hoa.application_no', $applicationNo);
+                ->where('hoa.application_no', $applicationNo)
+                ->when($uid, fn ($q) => $q->where('haod.uid', $uid))
+                ->exists();
 
-            if ($uid) {
-                $query->where('haod.uid', $uid);
+            if (!$ownsApplication) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No application found with the given application number',
+                ], 404);
             }
 
-            $statusHistory = $query->select(
-                'hoa.online_application_id',
-                'hoa.application_no',
-                'haod.uid',
-                'hoa.status',
-                'hoa.date_of_application',
-                'hoa.date_of_verified',
-                'hoa.computer_serial_no',
-                'hpf.short_code',
-                'hpf.created_at',
-                'hasm.status_description'
-            )
-            ->orderBy('hpf.created_at', 'ASC')
-            ->get();
+            // Drupal fetch_full_application_status_updated (26-02-2026): group by applicant_show_status
+            $statusHistory = WaitingNumberService::getApplicationStatusHistoryGrouped($applicationNo);
 
-            if ($statusHistory->isEmpty()) {
+            if (empty($statusHistory)) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'No application found with the given application number',
@@ -197,7 +186,7 @@ class ApplicationStatusController extends Controller
                     'message' => 'Application not found',
                 ], 404);
             }
-
+            
             // Get estate preferences
             $estatePreferences = DB::table('housing_new_application_estate_preferences as hnaep')
                 ->join('housing_estate as he', 'he.estate_id', '=', 'hnaep.estate_id')
@@ -215,9 +204,11 @@ class ApplicationStatusController extends Controller
                 'offer_letter_generate', 'applicant_acceptance', 'applicant_reject',
                 'ddo_verified_2', 'ddo_rejected_2', 'housing_sup_approved_2',
                 'housing_sup_reject_2', 'license_generate', 'existing_occupant',
-                'applied', 'offer_letter_cancel', 'license_cancel'
+                'offer_letter_cancel', 'license_cancel','flat_possession_taken'
+                // 'applied', 'verified', 'rejected', 'cancellation_requested', 'cancelled', 'flat_released' are not included as per discussion
             ];
 
+            
             if (in_array($status, $allowedStatuses)) {
                 $allotmentDetails = DB::table('housing_online_application as hoa')
                     ->join('housing_applicant_official_detail as haod', 'haod.applicant_official_detail_id', '=', 'hoa.applicant_official_detail_id')
@@ -282,6 +273,7 @@ class ApplicationStatusController extends Controller
                 $application->scale_from ?? 0,
                 $application->scale_to ?? 0
             );
+            
 
             return response()->json([
                 'status' => 'success',
@@ -399,7 +391,10 @@ class ApplicationStatusController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'release_date' => 'required|date_format:d/m/Y',
+            'remarks' => 'required|string',
             'uid' => 'required|integer',
+            'electric_bill_file_upload' => 'required|file|mimes:pdf|max:1024',
+            'rent_deduction_file_upload' => 'required|file|mimes:pdf|max:1024',
         ]);
 
         if ($validator->fails()) {
@@ -415,6 +410,16 @@ class ApplicationStatusController extends Controller
 
             $releaseDate = \Carbon\Carbon::createFromFormat('d/m/Y', $request->input('release_date'))->format('Y-m-d');
             $uid = $request->input('uid');
+            $remarks = $request->input('remarks');
+
+            $electricBillUpload = $this->storeReleaseDocument(
+                $request->file('electric_bill_file_upload'),
+                'doc/electric_bill'
+            );
+            $rentDeductionUpload = $this->storeReleaseDocument(
+                $request->file('rent_deduction_file_upload'),
+                'doc/rent_deduction'
+            );
 
             // Get occupant license details
             $licenseData = DB::table('housing_occupant_license as hol')
@@ -434,7 +439,13 @@ class ApplicationStatusController extends Controller
             // Update occupant license
             DB::table('housing_occupant_license')
                 ->where('occupant_license_id', $licenseData->occupant_license_id)
-                ->update(['release_date' => $releaseDate]);
+                ->update([
+                    'release_date' => $releaseDate,
+                    'electric_bill_file_name' => $electricBillUpload['file_name'],
+                    'electric_bill_file_path' => $electricBillUpload['file_path'],
+                    'rent_deduction_file_name' => $rentDeductionUpload['file_name'],
+                    'rent_deduction_file_path' => $rentDeductionUpload['file_path'],
+                ]);
 
             // Update application status
             DB::table('housing_online_application')
@@ -445,7 +456,7 @@ class ApplicationStatusController extends Controller
                 ]);
 
             // Insert into process flow
-            ProcessFlowService::insertProcessFlow($id, 'flat_released', $uid);
+            ProcessFlowService::insertProcessFlow($id, 'flat_released', $uid, $remarks);
 
             // Deactivate official detail and free flat
             $officialDetail = DB::table('housing_applicant_official_detail as haod')
@@ -471,7 +482,7 @@ class ApplicationStatusController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Release Date Added Successfully.',
+                'message' => 'Release Date Added Successfully from Subdivision.',
             ]);
 
         } catch (\Exception $e) {
@@ -486,6 +497,22 @@ class ApplicationStatusController extends Controller
                 'message' => 'Failed to add release date',
             ], 500);
         }
+    }
+
+    /**
+     * Store release-related document uploads (electric bill / rent deduction).
+     */
+    private function storeReleaseDocument($file, string $directory): array
+    {
+        $originalName = $file->getClientOriginalName();
+        $safeName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $originalName);
+
+        Storage::disk('public')->putFileAs($directory, $file, $safeName);
+
+        return [
+            'file_name' => $originalName,
+            'file_path' => 'public://' . $directory . '/' . $safeName,
+        ];
     }
 
     /**

@@ -24,6 +24,16 @@ use App\Http\Controllers\Api\WaitingListController;
 use App\Http\Controllers\Api\VacancyListController;
 use App\Http\Controllers\Api\RheAllotmentController;
 use App\Http\Controllers\Api\AddFlatBlockController;
+use App\Http\Controllers\Api\RetirementListController;
+use App\Http\Controllers\Api\UserRegistrationController;
+use App\Http\Controllers\Api\ApplicantDataUploadController;
+use App\Http\Controllers\Api\ComplaintManagementController;
+use App\Http\Controllers\Api\UnauthorizedOccupantsController;
+use App\Http\Controllers\Api\FlatMasterController;
+use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\ApplicationRegistrationListController;
+use App\Http\Controllers\Api\AutoCancellationListController;
+use App\Http\Controllers\Api\FlatRoasterDetailsController;
 
 // Public routes
 Route::get('/content/{param}', [CmsContentPublicController::class, 'show']);
@@ -31,6 +41,28 @@ Route::get('/cms/{param}', [CmsContentPublicController::class, 'show']);
 Route::get('/auth/public-key', [AuthController::class, 'getPublicKey']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/generate-sso-token', [AuthController::class, 'generateSsoToken']);
+
+// User Registration (Public)
+Route::post('/register', [UserRegistrationController::class, 'register']);
+Route::get('/registration/{uid}', [UserRegistrationController::class, 'show'])->whereNumber('uid');
+Route::get('/complaints/my/{uid}', [ComplaintManagementController::class, 'myComplaints'])->whereNumber('uid');
+Route::post('/complaints', [ComplaintManagementController::class, 'store']);
+Route::get('/complaints/helpers', [ComplaintManagementController::class, 'complaintHelpers']);
+Route::get('/complaints/rhewise', [ComplaintManagementController::class, 'rhewiseList']);
+Route::get('/complaints/subdivn-rhewise', [ComplaintManagementController::class, 'subdivnRhewiseList']);
+Route::get('/complaints/{id}', [ComplaintManagementController::class, 'showComplaint'])->whereNumber('id');
+Route::post('/complaints/{id}/action-report', [ComplaintManagementController::class, 'storeActionReport'])->whereNumber('id');
+Route::get('/unauthorized-occupants', [UnauthorizedOccupantsController::class, 'index']);
+Route::get('/unauthorized-occupants/flat/{flatId}', [UnauthorizedOccupantsController::class, 'flatDetail'])->whereNumber('flatId');
+Route::get('/flat-master/meta', [FlatMasterController::class, 'meta']);
+Route::get('/flat-master/list', [FlatMasterController::class, 'index']);
+Route::post('/flat-master', [FlatMasterController::class, 'store']);
+Route::get('/flat-master/{flatId}', [FlatMasterController::class, 'show'])->whereNumber('flatId');
+Route::put('/flat-master/{flatId}', [FlatMasterController::class, 'update'])->whereNumber('flatId');
+Route::delete('/flat-master/{flatId}', [FlatMasterController::class, 'destroy'])->whereNumber('flatId');
+Route::get('/users/profile/{uid}', [UserProfileController::class, 'show'])->whereNumber('uid');
+Route::put('/users/profile/{uid}', [UserProfileController::class, 'update'])->whereNumber('uid');
+Route::post('/users/profile/{uid}/change-password', [UserProfileController::class, 'changePassword'])->whereNumber('uid');
 
 // Document download (requires authentication)
 Route::middleware('auth:sanctum')->group(function () {
@@ -158,8 +190,24 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Cache clear (for admin panel: clear backend cache)
         Route::post('cache/clear', [\App\Http\Controllers\Api\CacheClearController::class, 'clear']);
-        
+
+        // Applicant Data Upload (Bulk registration)
+        Route::post('applicant-data-upload', [ApplicantDataUploadController::class, 'upload']);
+
+        // Application of Registration List (admin approve/reject pending applicants)
+        Route::get('application-registration-list', [ApplicationRegistrationListController::class, 'index']);
+        Route::post('application-registration-list/{uid}/{action}', [ApplicationRegistrationListController::class, 'updateStatus'])
+            ->whereNumber('uid')
+            ->whereIn('action', ['activate', 'reject']);
+
     });
+
+    // Auto cancellation list (housing officials — subdiv/division roles)
+    Route::get('auto-cancellation-list', [AutoCancellationListController::class, 'index']);
+
+    // Flat wise applicant details (authenticated officials)
+    Route::get('flat-wise-applicant-details/helpers', [FlatWiseApplicantDetailsController::class, 'helpers']);
+    Route::get('flat-wise-applicant-details', [FlatWiseApplicantDetailsController::class, 'list']);
         // CMS Content
         Route::get('cms-content', [CmsContentController::class, 'index']);
         Route::get('cms-content/meta/stats', [CmsContentController::class, 'stats']);
@@ -187,9 +235,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('existing-applicants/with-hrms', [ExistingApplicantController::class, 'withHrms']);
         Route::get('existing-applicants/without-hrms', [ExistingApplicantController::class, 'withoutHrms']);
         Route::get('existing-applicants/search', [ExistingApplicantController::class, 'search']);
+        Route::get('existing-applicants/resolve-by-app-no', [ExistingApplicantController::class, 'resolveByApplicationNo']);
         Route::post('existing-applicants', [ExistingApplicantController::class, 'store']);
         Route::get('existing-applicants/{id}', [ExistingApplicantController::class, 'show']);
         Route::put('existing-applicants/{id}', [ExistingApplicantController::class, 'update']);
+        Route::post('existing-applicants/{id}/reject', [ExistingApplicantController::class, 'rejectPhysical']);
         Route::post('existing-applicants/{id}/accept-declaration', [ExistingApplicantController::class, 'acceptDeclaration']);
         
         // Existing Applicant Helper Endpoints
@@ -268,6 +318,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Waiting List APIs
         Route::get('waiting-list/flat-type', [WaitingListController::class, 'flatTypeWaitingList']);
+        Route::get('waiting-list/applicant-position', [WaitingListController::class, 'applicantWaitingPosition']);
+        Route::get('waiting-list/view', [WaitingListController::class, 'viewWaitingList']);
+        Route::get('waiting-list/applicant-vacancy', [WaitingListController::class, 'flattypeApplicantVacancy']);
+
+        Route::post('allow-new-application', [AllowNewApplicationController::class, 'store']);
+
+        Route::get('flat-roaster-details', [FlatRoasterDetailsController::class, 'index']);
 
         // Vacancy List APIs
         Route::get('vacancy-list/district-wise', [VacancyListController::class, 'districtWise']);
@@ -380,7 +437,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('flat-types/{rhe_id}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFlatTypesUnderRhe']);
                 Route::get('blocks/{rhe_id}/{flat_type_id}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getBlocksUnderRhe']);
                 Route::get('floors/{rhe_id}/{flat_type_id}/{block_id}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFloorsUnderRhe']);
-                Route::get('flats/{rhe_id}/{flat_type_id}/{block_id}/{floor_no}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFlatsUnderRhe']);
+                Route::get('flats/{rhe_id}/{flat_type_id}/{block_id}/{floor_no}', [\App\Http\Controllers\Api\SpecialRecommendationController::class, 'getFlatsUnderRhe'])
+                    ->where('floor_no', '.*');
             });
         });
 
@@ -423,6 +481,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('cs/update-status', [\App\Http\Controllers\Api\ViewShiftingAllotmentDetailsController::class, 'updateCsStatus']);
             Route::get('cs/documents', [\App\Http\Controllers\Api\ViewShiftingAllotmentDetailsController::class, 'getCsDocuments']);
         });
-});
 
+        // Retirement list (upcoming within 6 months)
+        Route::get('retirement-list', [RetirementListController::class, 'index']);
+});
 

@@ -20,7 +20,21 @@ class GenerateLicenseController extends Controller
                 ->join('housing_applicant as ha', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
                 ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
                 ->join('housing_ddo as hd', 'hd.ddo_id', '=', 'haod.ddo_id')
-                ->join('housing_allotment_status_master as hsm', 'hsm.short_code', '=', 'hoa.status')
+                // ->join('housing_allotment_status_master as hsm', 'hsm.short_code', '=', 'hoa.status')
+                ->join(
+                    DB::raw('(
+                        SELECT DISTINCT ON (short_code)
+                            short_code,
+                            status_id,
+                            status_description,
+                            applicant_show_status
+                        FROM housing_allotment_status_master
+                        ORDER BY short_code, status_id
+                    ) as hsm'),
+                    'hsm.short_code',
+                    '=',
+                    'hoa.status'
+                )
                 ->where('hoa.status', 'housingapprover_approved_2')
                 ->where('haod.is_active', 1)
                 ->select(

@@ -85,6 +85,14 @@ class ApplicationListController extends Controller
             } else {
                 $applications = $this->fetchApplicationListForVerifiedReject($entity, $status, $userRole, $ddoCode);
             }
+            // \Log::info('Fetched Admin Application List', [
+            //     'pageStatus' => $pageStatus,
+            //     'entity' => $entity,
+            //     'status' => $status,
+            //     'user_role' => $userRole,
+            //     'ddo_code' => $ddoCode,
+            //     'applications' => $applications,
+            // ]);
 
             // Get counts for verified and rejected
             $actionStatus = $this->getActionStatus($status, $userRole);
@@ -279,7 +287,6 @@ class ApplicationListController extends Controller
             ->leftJoin('housing_vs_application as hva', 'hva.online_application_id', '=', 'hoa.online_application_id')
             ->leftJoin('housing_cs_application as hca', 'hca.online_application_id', '=', 'hoa.online_application_id')
             ->leftJoin('housing_license_application as hla', 'hla.online_application_id', '=', 'hoa.online_application_id')
-            ->leftJoin('housing_process_flow as hpf', 'hpf.online_application_id', '=', 'hoa.online_application_id')
             ->where('haod.uid', $uid)
             ->where('haod.is_active', 1)
             ->select(
@@ -292,7 +299,6 @@ class ApplicationListController extends Controller
                 'hoa.uploaded_app_form',
                 'hft.flat_type',
                 'hft.flat_type_id',
-                'hpf.short_code',
                 DB::raw("CASE 
                     WHEN hna.online_application_id IS NOT NULL THEN 'new-apply'
                     WHEN hva.online_application_id IS NOT NULL THEN 'vs'
@@ -316,7 +322,7 @@ class ApplicationListController extends Controller
                 'flat_type' => $app->flat_type,
                 'application_type' => $app->application_type,
             ];
-        })->toArray();
+        })->unique('online_application_id')->values()->toArray();
     }
 
     /**
@@ -331,12 +337,12 @@ class ApplicationListController extends Controller
             ->where('haod.is_active', 1)
             ->where('hoa.status', $status);
 
-        // 🔹 Filter by DDO code for DDO role
-        if ($userRole == 11 && $ddoCode) {
+        // Filter by DDO code for DDO role
+        if ($userRole == 11 && !empty($ddoCode)) {
             $query->where('hd.ddo_code', $ddoCode);
         }
 
-        // 🔹 Entity-specific joins
+        // Entity-specific joins
         if ($entity === 'new-apply') {
 
             $query->join('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id')
@@ -356,7 +362,6 @@ class ApplicationListController extends Controller
                 ->addSelect('hca.allotment_category', 'hft.flat_type');
         }
 
-        // 🔹 Common selects
         $query->addSelect(
             'ha.applicant_name',
             'hoa.online_application_id',
@@ -365,20 +370,18 @@ class ApplicationListController extends Controller
             'hoa.computer_serial_no'
         );
 
-        // 🔹 PostgreSQL-safe ordering (alphanumeric sorting)
+        // Remove duplicate rows
+        $query->distinct();
+
         if ($entity === 'new-apply') {
-            // Sort by numeric part (as text for proper alphanumeric sorting), then alphabetic part
-            $query->orderByRaw("
-                LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') ASC,
-                regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC
-            ");
+            $this->applyComputerSerialNoOrder($query);
         } else {
             $query->orderBy('hoa.online_application_id', 'ASC');
         }
 
-        return $query->get()->map(function ($app) {
-            return (array) $app;
-        })->toArray();
+        return $query->get()
+            ->map(fn($app) => $this->stripSerialSortColumns((array) $app))
+            ->toArray();
     }
 
 
@@ -391,37 +394,61 @@ class ApplicationListController extends Controller
             ->join('housing_applicant as ha', 'ha.housing_applicant_id', '=', 'haod.housing_applicant_id')
             ->join('housing_online_application as hoa', 'hoa.applicant_official_detail_id', '=', 'haod.applicant_official_detail_id')
             ->join('housing_ddo as hd', 'hd.ddo_id', '=', 'haod.ddo_id')
-            ->join('housing_process_flow as hpf', 'hpf.online_application_id', '=', 'hoa.online_application_id')
-            ->join('housing_allotment_status_master as hsm', 'hsm.status_id', '=', 'hpf.status_id')
-            ->where('hpf.short_code', $status);
+            ->join('housing_process_flow as hpf', function ($join) use ($status) {
+                $join->on('hpf.online_application_id', '=', 'hoa.online_application_id')
+                    ->where('hpf.short_code', '=', $status);
+            })
+            ->join(
+                DB::raw('(
+                    SELECT DISTINCT ON (status_id)
+                        status_id,
+                        status_description,
+                        applicant_show_status
+                    FROM housing_allotment_status_master
+                    ORDER BY status_id
+                ) as hsm'),
+                'hsm.status_id',
+                '=',
+                'hpf.status_id'
+            );
 
-        // Filter by DDO code for DDO role
-        if ($userRole == 11 && $ddoCode) {
+        // Filter by DDO code
+        if ($userRole == 11 && !empty($ddoCode)) {
             $query->where('hd.ddo_code', $ddoCode);
         }
 
-        // Handle is_active based on status
+        // Handle active/inactive applications
         $rejectedStatuses = [
-            'housing_sup_reject_1', 'housing_official_reject', 'housing_sup_reject_2',
-            'housing_approver_reject_1', 'housing_approver_reject_2',
-            'ddo_rejected_1', 'ddo_rejected_2'
+            'housing_sup_reject_1',
+            'housing_official_reject',
+            'housing_sup_reject_2',
+            'housing_approver_reject_1',
+            'housing_approver_reject_2',
+            'ddo_rejected_1',
+            'ddo_rejected_2'
         ];
+
         if (in_array($status, $rejectedStatuses)) {
             $query->where('haod.is_active', 0);
         } else {
             $query->where('haod.is_active', 1);
         }
 
-        // Join entity-specific tables
-        if ($entity == 'new-apply') {
+        // Entity-specific joins
+        if ($entity === 'new-apply') {
+
             $query->join('housing_new_allotment_application as hna', 'hna.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hna.flat_type_id', '=', 'hft.flat_type_id')
                 ->addSelect('hna.allotment_category', 'hft.flat_type');
-        } elseif ($entity == 'vs') {
+
+        } elseif ($entity === 'vs') {
+
             $query->join('housing_vs_application as hva', 'hva.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hva.flat_type_id', '=', 'hft.flat_type_id')
                 ->addSelect('hva.allotment_category', 'hft.flat_type');
-        } elseif ($entity == 'cs') {
+
+        } elseif ($entity === 'cs') {
+
             $query->join('housing_cs_application as hca', 'hca.online_application_id', '=', 'hoa.online_application_id')
                 ->join('housing_flat_type as hft', 'hca.flat_type_id', '=', 'hft.flat_type_id')
                 ->addSelect('hca.allotment_category', 'hft.flat_type');
@@ -434,22 +461,28 @@ class ApplicationListController extends Controller
             'hoa.date_of_application',
             'hoa.computer_serial_no',
             'hpf.created_at as approval_or_rejection_date',
-            'hsm.status_description'
+            'hsm.status_description',
+            'hsm.applicant_show_status'
         );
 
-        // Order by computer serial number for new-apply (alphanumeric sorting), by ID for others
-        if ($entity == 'new-apply') {
-            // Sort by numeric part (as text for proper alphanumeric sorting), then alphabetic part
-            $query->orderByRaw("
-                LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') ASC,
-                regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') ASC");
+        // Extra safety against duplicate rows
+        $query->distinct();
+
+        if ($entity === 'new-apply') {
+            $this->applyComputerSerialNoOrder($query);
         } else {
             $query->orderBy('hoa.online_application_id', 'ASC');
         }
 
-        return $query->get()->map(function ($app) {
-            return (array) $app;
-        })->toArray();
+        return $query->get()
+            ->map(function ($app) {
+                $row = $this->stripSerialSortColumns((array) $app);
+                $row['status_description'] =
+                    $app->applicant_show_status ?? $app->status_description;
+
+                return $row;
+            })
+            ->toArray();
     }
 
     /**
@@ -558,10 +591,17 @@ class ApplicationListController extends Controller
     {
         $statusData = DB::table('housing_allotment_status_master')
             ->where('short_code', $status)
-            ->select('status_description', 'short_code')
+            ->select('status_description', 'applicant_show_status', 'short_code')
             ->first();
 
-        return $statusData ? (array) $statusData : null;
+        if (!$statusData) {
+            return null;
+        }
+
+        $arr = (array) $statusData;
+        $arr['status_description'] = $statusData->applicant_show_status ?: $statusData->status_description;
+
+        return $arr;
     }
 
     /**
@@ -808,17 +848,33 @@ class ApplicationListController extends Controller
         $ddoCode = $request->input('ddo_code');
         $uid = $request->input('uid');
         $userName = $request->input('userName');
-        if(empty($userRole)){
+
+        $authUser = $request->user();
+        if (!$uid && $authUser) {
+            $uid = $authUser->uid;
+        }
+        if (empty($userRole) && $uid) {
             $userRole = DB::table('user_role')
                 ->where('uid', $uid)
                 ->orderBy('rid', 'ASC')
                 ->value('rid');
         }
+        if (empty($ddoCode) && $authUser && (int) $userRole === 11) {
+            $ddoCode = $authUser->name;
+        }
+        $userRole = $userRole !== null && $userRole !== '' ? (int) $userRole : null;
         
         if (!$status || !$entity) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Status and entity are required',
+            ], 422);
+        }
+
+        if ($userRole === null) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User role could not be determined',
             ], 422);
         }
 
@@ -1244,6 +1300,27 @@ class ApplicationListController extends Controller
      * Compare two alphanumeric computer serial numbers
      * Returns: -1 if $a < $b, 0 if equal, 1 if $a > $b
      */
+    /**
+     * Order by computer serial number (alphanumeric).
+     * PostgreSQL requires ORDER BY expressions in SELECT when using DISTINCT.
+     */
+    private function applyComputerSerialNoOrder($query): void
+    {
+        $query->addSelect(
+            DB::raw("LPAD(regexp_replace(hoa.computer_serial_no, '[^0-9]', '', 'g'), 10, '0') as _serial_num_sort"),
+            DB::raw("regexp_replace(hoa.computer_serial_no, '[0-9]', '', 'g') as _serial_alpha_sort")
+        );
+        $query->orderBy('_serial_num_sort', 'ASC')
+            ->orderBy('_serial_alpha_sort', 'ASC');
+    }
+
+    private function stripSerialSortColumns(array $row): array
+    {
+        unset($row['_serial_num_sort'], $row['_serial_alpha_sort']);
+
+        return $row;
+    }
+
     private function compareAlphanumeric($a, $b)
     {
         // Extract numeric parts

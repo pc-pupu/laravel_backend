@@ -46,6 +46,16 @@ class ExistingApplicantController extends Controller
         }
         
 
+        if ($request->filled('flat_type')) {
+            $query->join('housing_pay_band_categories as hpbc', 'hpbc.pay_band_id', '=', 'haod.pay_band_id')
+                ->join('housing_flat_type as hft', 'hft.flat_type_id', '=', 'hpbc.flat_type_id')
+                ->where('hft.flat_type_id', $request->input('flat_type'));
+        }
+
+        if ($request->filled('status_type')) {
+            $query->where('hoa.status', $request->input('status_type'));
+        }
+
         // Search
         if ($request->filled('search')) {
             $search = strtolower($request->input('search'));
@@ -56,7 +66,7 @@ class ExistingApplicantController extends Controller
             });
         }
 
-        $query->select([
+        $select = [
             'ha.housing_applicant_id',
             'ha.applicant_name',
             'ha.guardian_name',
@@ -77,9 +87,17 @@ class ExistingApplicantController extends Controller
             'hoa.computer_serial_no',
             'hoa.online_application_id',
             'hoa.physical_application_no',
+            'hoa.status',
             'haod.hrms_id',
-            'haod.uid'
-        ]);
+            'haod.uid',
+        ];
+
+        if ($request->filled('flat_type')) {
+            $select[] = 'hft.flat_type';
+            $select[] = 'hpbc.flag as pay_scale_flag';
+        }
+
+        $query->select($select);
 
         // Order by computer serial no (alphanumeric sorting)
         // Sort by numeric part (as text for proper alphanumeric sorting), then alphabetic part
@@ -840,6 +858,69 @@ class ExistingApplicantController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Reject a physical/legacy application (Drupal physical-application-reject)
+     */
+    public function rejectPhysical(Request $request, $id)
+    {
+        $uid = $request->user()?->uid ?? $request->input('done_by_uid');
+
+        $exists = DB::table('housing_online_application')
+            ->where('online_application_id', $id)
+            ->exists();
+
+        if (!$exists) {
+            return response()->json(['status' => 'error', 'message' => 'Application not found.'], 404);
+        }
+
+        DB::table('housing_online_application')
+            ->where('online_application_id', $id)
+            ->update([
+                'status' => 'housing_approver_reject_1',
+                'date_of_verified' => now(),
+            ]);
+
+        $statusId = DB::table('housing_allotment_status_master')
+            ->where('short_code', 'housing_approver_reject_1')
+            ->value('status_id');
+
+        if ($statusId) {
+            DB::table('housing_process_flow')->insert([
+                'online_application_id' => $id,
+                'status_id' => $statusId,
+                'created_at' => now(),
+                'uid' => $uid,
+                'short_code' => 'housing_approver_reject_1',
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Application rejected successfully.',
+        ]);
+    }
+
+    /**
+     * Resolve online_application_id from application number (physical-applicant-details)
+     */
+    public function resolveByApplicationNo(Request $request)
+    {
+        $applicationNo = trim($request->input('application_no', ''));
+        if ($applicationNo === '') {
+            return response()->json(['status' => 'error', 'message' => 'Application number required.'], 422);
+        }
+
+        $id = DB::table('housing_online_application')
+            ->where('application_no', 'LIKE', '%' . $applicationNo . '%')
+            ->value('online_application_id');
+
+        if (!$id) {
+            return response()->json(['status' => 'error', 'message' => 'Application not found.'], 404);
+        }
+
+        return response()->json(['status' => 'success', 'data' => ['online_application_id' => $id]]);
     }
 }
 

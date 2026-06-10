@@ -14,40 +14,46 @@ class ExistingApplicantVsCsHelperController extends Controller
     public function getRheList(Request $request)
     {
         $user = auth()->user();
-        
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
         // Check if user has role 13 (admin - can see all RHEs)
         $userRoles = DB::table('user_role')
             ->where('uid', $user->uid)
             ->pluck('rid')
             ->toArray();
-        
+
         $isAdmin = in_array(13, $userRoles);
 
         $query = DB::table('housing_estate as he')
             ->select('he.estate_id', 'he.estate_name', 'he.estate_address')
             ->orderBy('he.estate_name', 'ASC');
 
-        // If not admin, filter by user's division/subdiv
+        // If not admin, filter by user's division/subdiv (Drupal rhe_list_specific)
         if (!$isAdmin) {
             $userDetails = DB::table('users_details')->where('uid', $user->uid)->first();
-            
-            if ($userDetails && !empty($userDetails->division_id)) {
-                if (!empty($userDetails->subdiv_id) && $userDetails->subdiv_id != 0) {
-                    $query->where('he.division_id', $userDetails->division_id)
-                        ->where('he.subdiv_id', $userDetails->subdiv_id);
-                } else {
-                    $query->where('he.division_id', $userDetails->division_id);
+
+            if ($userDetails && $userDetails->division_id !== '' && $userDetails->division_id !== null) {
+                $query->where('he.division_id', $userDetails->division_id);
+
+                if (!empty($userDetails->subdiv_id) && (int) $userDetails->subdiv_id !== 0) {
+                    $query->where('he.subdiv_id', $userDetails->subdiv_id);
                 }
             }
         }
 
-        $rheList = $query->get()->mapWithKeys(function ($item) {
-            $str = $item->estate_name;
+        $rheList = $query->get()->map(function ($item) {
+            $label = $item->estate_name;
             if (!empty($item->estate_address)) {
-                $str = $str . ' | ' . $item->estate_address;
+                $label .= ' | ' . $item->estate_address;
             }
-            return [$item->estate_id => $str];
-        });
+
+            return [
+                'value' => $item->estate_id,
+                'label' => $label,
+            ];
+        })->values();
 
         return response()->json(['status' => 'success', 'data' => $rheList]);
     }
@@ -69,9 +75,11 @@ class ExistingApplicantVsCsHelperController extends Controller
             ->groupBy('hf.flat_type_id', 'hft.flat_type')
             ->orderBy('hft.flat_type', 'ASC')
             ->get()
-            ->mapWithKeys(function ($item) {
-                return [$item->flat_type_id => $item->flat_type];
-            });
+            ->map(fn ($item) => [
+                'value' => $item->flat_type_id,
+                'label' => $item->flat_type,
+            ])
+            ->values();
 
         return response()->json(['status' => 'success', 'data' => $flatTypes]);
     }
@@ -96,9 +104,11 @@ class ExistingApplicantVsCsHelperController extends Controller
             ->groupBy('hf.block_id', 'hb.block_name')
             ->orderBy('hb.block_name', 'ASC')
             ->get()
-            ->mapWithKeys(function ($item) {
-                return [$item->block_id => $item->block_name];
-            });
+            ->map(fn ($item) => [
+                'value' => $item->block_id,
+                'label' => $item->block_name,
+            ])
+            ->values();
 
         return response()->json(['status' => 'success', 'data' => $blocks]);
     }
@@ -126,10 +136,12 @@ class ExistingApplicantVsCsHelperController extends Controller
             ->select('hf.flat_id', 'hf.flat_no')
             ->orderBy('hf.flat_id', 'ASC')
             ->get()
-            ->mapWithKeys(function ($item) {
-                return [$item->flat_id => $item->flat_no];
-            });
-            // \Log::info('error log',[$flats]);
+            ->map(fn ($item) => [
+                'value' => $item->flat_id,
+                'label' => $item->flat_no,
+            ])
+            ->values();
+
         return response()->json(['status' => 'success', 'data' => $flats]);
     }
 

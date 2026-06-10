@@ -7,9 +7,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Services\NotificationService;
 
 class ShiftingAllotmentController extends Controller
 {
+    public function __construct(private readonly NotificationService $notificationService)
+    {
+    }
     /**
      * Get RHE list for VS Allotment
      * GET /api/shifting-allotment/vs/rhe-list
@@ -370,8 +374,13 @@ class ShiftingAllotmentController extends Controller
 
                 // Send email notifications (if email service is configured)
                 if (!empty($allottedEmails)) {
-                    // TODO: Implement email sending
-                    Log::info('VS Allotment emails to be sent', ['emails' => $allottedEmails]);
+                    foreach ($allottedEmails as $email) {
+                        $this->notificationService->sendMail(
+                            $email,
+                            'RHE Allotment Status',
+                            'Your shifting allotment has been processed. Please log in to the portal for details.'
+                        );
+                    }
                 }
 
                 return response()->json([
@@ -505,8 +514,13 @@ class ShiftingAllotmentController extends Controller
 
                 // Send email notifications (if email service is configured)
                 if (!empty($allottedEmails)) {
-                    // TODO: Implement email sending
-                    Log::info('CS Allotment emails to be sent', ['emails' => $allottedEmails]);
+                    foreach ($allottedEmails as $email) {
+                        $this->notificationService->sendMail(
+                            $email,
+                            'RHE Allotment Status',
+                            'Your shifting allotment has been processed. Please log in to the portal for details.'
+                        );
+                    }
                 }
 
                 return response()->json([

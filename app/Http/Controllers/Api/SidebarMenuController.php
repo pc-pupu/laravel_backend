@@ -85,29 +85,39 @@ class SidebarMenuController extends Controller
      */
     public function all(Request $request)
     {
-        $menus = HousingSidebarMenu::with(['parent', 'roles'])
-            ->orderBy('order_no')
-            ->get()
-            ->map(function ($menu) {
-                return [
-                    'sidebar_menu_id' => $menu->sidebar_menu_id,
-                    'menu_name' => $menu->menu_name,
-                    'route_name' => $menu->route_name,
-                    'url' => $menu->url,
-                    'icon_class' => $menu->icon_class,
-                    'parent_id' => $menu->parent_id,
-                    'parent_name' => $menu->parent ? $menu->parent->menu_name : null,
-                    'order_no' => $menu->order_no,
-                    'is_active' => $menu->is_active,
-                    'route_params' => $menu->route_params ?? [],
-                    'roles' => $menu->roles->map(function ($role) {
-                        return [
-                            'id' => $role->rid,
-                            'name' => $role->name,
-                        ];
-                    })->toArray(),
-                ];
+        $query = HousingSidebarMenu::with(['parent', 'roles'])
+            ->orderBy('order_no');
+
+        if ($request->filled('search')) {
+            $searchTerm = strtolower($request->search);
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereRaw('LOWER(menu_name) LIKE ?', ["%{$searchTerm}%"])
+                    ->orWhereRaw('LOWER(COALESCE(route_name, \'\')) LIKE ?', ["%{$searchTerm}%"])
+                    ->orWhereRaw('LOWER(COALESCE(url, \'\')) LIKE ?', ["%{$searchTerm}%"]);
             });
+        }
+
+        $menus = $query->paginate($request->per_page ?? 15);
+        $menus->getCollection()->transform(function ($menu) {
+            return [
+                'sidebar_menu_id' => $menu->sidebar_menu_id,
+                'menu_name' => $menu->menu_name,
+                'route_name' => $menu->route_name,
+                'url' => $menu->url,
+                'icon_class' => $menu->icon_class,
+                'parent_id' => $menu->parent_id,
+                'parent_name' => $menu->parent ? $menu->parent->menu_name : null,
+                'order_no' => $menu->order_no,
+                'is_active' => $menu->is_active,
+                'route_params' => $menu->route_params ?? [],
+                'roles' => $menu->roles->map(function ($role) {
+                    return [
+                        'id' => $role->rid,
+                        'name' => $role->name,
+                    ];
+                })->toArray(),
+            ];
+        });
 
         return response()->json([
             'status' => 'success',
@@ -130,7 +140,7 @@ class SidebarMenuController extends Controller
             'is_active' => 'boolean',
             'route_params' => 'nullable',
             'roles' => 'required|array|min:1',
-            'roles.*' => 'exists:roles,id',
+            'roles.*' => 'exists:roles,rid',
         ]);
 
         if ($validator->fails()) {
@@ -209,7 +219,7 @@ class SidebarMenuController extends Controller
             'is_active' => 'boolean',
             'route_params' => 'nullable',
             'roles' => 'required|array|min:1',
-            'roles.*' => 'exists:roles,id',
+            'roles.*' => 'exists:roles,rid',
         ]);
 
         if ($validator->fails()) {
